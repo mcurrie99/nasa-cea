@@ -3,13 +3,17 @@ name = "cea-sys"
 version = "0.1.0"
 edition = "2024"
 links = "cea"
+build = "build.rs"
+license = "Apache-2.0"
 
 [features]
 # Build CEA from a vendored checkout (recommended for dev/CI)
+default = ["vendored"]
 vendored = []
 
 [build-dependencies]
 bindgen = "0.72.1"
 cmake = "0.1"
+walkdir = "2"
 
 [dependencies]
