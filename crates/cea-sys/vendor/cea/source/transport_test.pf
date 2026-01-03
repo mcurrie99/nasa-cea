@@ -1,0 +1,59 @@
+module transport_test
+
+    use funit
+    use cea_transport
+    use cea_equilibrium
+    use cea_thermo
+    use cea_mixture
+    use cea_units
+    use cea_param, only: R=>gas_constant
+    implicit none
+
+    type(ThermoDB) :: all_thermo
+    type(TransportDB) :: all_transport
+
+contains
+
+    @before
+    subroutine setup_mixture()
+        all_thermo = read_thermo('data/thermo.lib')
+        all_transport = read_transport('data/trans.lib')
+    end subroutine
+
+    @test
+    subroutine test_simple_transport()
+
+        type(Mixture) :: products
+        type(Mixture) :: reactants
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        real(dp) :: h_reac, p_reac, weights(2)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reactants = Mixture(all_thermo, ['H2', 'O2'])
+        products  = Mixture(all_thermo, ['H  ', 'H2 ', 'H2O', 'O  ', 'O2 ', 'OH '])
+
+        solver = EqSolver(products, reactants, all_transport=all_transport)
+        solution = EqSolution(solver)
+
+        ! Get the species weights
+        weights = reactants%weights_from_moles([1.0d0, 1.0d0])
+
+        ! Get the constraint values
+        h_reac = reactants%calc_enthalpy(weights, 2000.0d0)/R
+        p_reac = 1.01325d0
+
+        call solver%solve(solution, 'hp', h_reac, p_reac, weights)
+
+        @assertRelativelyEqual(solution%viscosity,       1.0666111773556635d0, tol)
+        @assertRelativelyEqual(solution%conductivity_fr, 3.5837891213979343d0, tol)
+        @assertRelativelyEqual(solution%cp_fr,           2.2803508069010063d0, tol)
+        @assertRelativelyEqual(solution%Pr_fr,           0.67868046264504223d0,tol)
+
+        @assertRelativelyEqual(solution%cp_eq,           15.545786271696615d0, tol)
+        @assertRelativelyEqual(solution%conductivity_eq, 39.879859514645077d0, tol)
+        @assertRelativelyEqual(solution%Pr_eq,           0.41578153985433886d0, tol)
+
+    end subroutine
+
+end module

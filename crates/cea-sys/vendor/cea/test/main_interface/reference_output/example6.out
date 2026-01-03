@@ -1,0 +1,189 @@
+
+ *******************************************************************************
+
+         NASA-GLENN CHEMICAL EQUILIBRIUM PROGRAM CEA2, MAY 21, 2004
+                   BY  BONNIE MCBRIDE AND SANFORD GORDON
+      REFS: NASA RP-1311, PART I, 1994 AND NASA RP-1311, PART II, 1996
+
+ *******************************************************************************
+
+
+
+ !  EXAMPLE 6:
+ !     (a)  Chapman-Jouguet detonation problem (detonation)
+ !     (b)  The reactants are H2 and O2 gases.  The mixture is
+ !          stoichiometric (r,e=1).
+ !     (c)  The unburned gases are at 298.15 and 500 K and pressures
+ !          1 bar and 30 bars (t,k=298.15,500, pbar=1,30)
+ !     (d)  Thermal transport properties are called for (transport).
+ !     (e)  Energy units in the final tables are in calories (calories).
+  
+ reac  oxid O2  wt%=100
+       fuel H2  wt%=100.
+  
+  prob  detonation   case=6  t=298.15,500, r,e=1, pbar=1,20
+  
+ output  calories transport
+ end
+
+ OPTIONS: TP=F  HP=F  SP=F  TV=F  UV=F  SV=F  DETN=T  SHOCK=F  REFL=F  INCD=F
+ RKT=F  FROZ=F  EQL=F  IONS=F  SIUNIT=F  DEBUGF=F  SHKDBG=F  DETDBG=F  TRNSPT=T
+
+ T,K =   298.1500   500.0000
+
+ TRACE= 0.00E+00  S/R= 0.000000E+00  H/R= 0.000000E+00  U/R= 0.000000E+00
+
+ P,BAR =     1.000000    20.000000
+
+    REACTANT          WT.FRAC   (ENERGY/R),K   TEMP,K  DENSITY
+        EXPLODED FORMULA
+ O: O2               1.000000   0.000000E+00     0.00  0.0000
+          O  2.00000
+ F: H2               1.000000   0.000000E+00     0.00  0.0000
+          H  2.00000
+
+  SPECIES BEING CONSIDERED IN THIS SYSTEM
+ (CONDENSED PHASE MAY HAVE NAME LISTED SEVERAL TIMES)
+  LAST thermo.inp UPDATE:    9/09/04
+
+  g 6/97  *H               g 4/02  HO2              tpis78  *H2            
+  g 8/89  H2O              g 6/99  H2O2             g 5/97  *O             
+  g 4/02  *OH              tpis89  *O2              g 8/01  O3             
+  g11/99  H2O(cr)          g 8/01  H2O(L)           g 8/01  H2O(L)         
+
+ SPECIES WITH TRANSPORT PROPERTIES
+
+        PURE SPECIES
+
+  H                 H2                H2O               O               
+  OH                O2              
+
+     BINARY INTERACTIONS
+
+     H               H2              
+     H               O               
+     H2              H2O             
+     H2              O2              
+     H2O             O2              
+     O               O2              
+
+
+ O/F =   7.936683
+
+                       EFFECTIVE FUEL     EFFECTIVE OXIDANT        MIXTURE
+ ENTHALPY                  h(2)/R              h(1)/R               h0/R
+ (KG-MOL)(K)/KG        0.00000000E+00      0.00000000E+00      0.00000000E+00
+
+ KG-FORM.WT./KG             bi(2)               bi(1)               b0i
+  *O                   0.00000000E+00      0.62502344E-01      0.55508435E-01
+  *H                   0.99212255E+00      0.00000000E+00      0.11101687E+00
+
+ POINT ITN      T            O           H 
+   1    8    3604.287     -15.691     -10.322
+
+ POINT ITN      T            O           H 
+   1    3    3632.117     -15.613     -10.240
+
+ POINT ITN      T            O           H 
+   1    3    3675.574     -15.615     -10.235
+
+ POINT ITN      T            O           H 
+   1    2    3674.277     -15.615     -10.236
+   2    5    4141.057     -14.604      -9.156
+   2    3    4212.983     -14.502      -9.045
+   2    3    4285.473     -14.505      -9.039
+   2    2    4283.374     -14.505      -9.040
+   3    6    3723.152     -15.723     -10.338
+   3    3    3664.160     -15.821     -10.445
+   3    3    3601.949     -15.820     -10.453
+   3    2    3600.027     -15.819     -10.452
+   4    5    4330.516     -14.644      -9.174
+   4    3    4261.181     -14.701      -9.240
+   4    3    4210.020     -14.700      -9.245
+   4    2    4209.489     -14.700      -9.245
+
+
+                     DETONATION PROPERTIES OF AN IDEAL REACTING GAS
+ CASE = 6              
+
+             REACTANT                    WT FRACTION      ENERGY      TEMP
+                                          (SEE NOTE)      CAL/MOL       K  
+ OXIDANT     O2                           1.0000000         0.000      0.000
+ FUEL        H2                           1.0000000         0.000      0.000
+
+ O/F=    7.93668  %FUEL= 11.189834  R,EQ.RATIO= 1.000000  PHI,EQ.RATIO= 1.000000
+
+ UNBURNED GAS
+
+ P1, ATM           0.9869  19.7385   0.9869  19.7385
+ T1, K             298.15   298.15   500.00   500.00
+ H1, CAL/G           0.00     0.00   118.41   118.41
+ M1, (1/n)         12.010   12.010   12.010   12.010
+ GAMMA1            1.4016   1.4016   1.3858   1.3858
+ SON VEL1,M/SEC     537.9    537.9    692.6    692.6
+
+ BURNED GAS
+
+ P, ATM            18.523   409.03   10.813   240.20
+ T, K             3674.28  4283.37  3600.03  4209.49
+ RHO, G/CC       8.9081-4 1.7752-2 5.2191-4 1.0420-2
+ H, CAL/G          676.65   752.01   758.26   836.60
+ U, CAL/G          173.08   194.01   256.51   278.37
+ G, CAL/G        -14625.8 -15395.6 -14583.5 -15410.9
+ S, CAL/(G)(K)     4.1647   3.7698   4.2616   3.8597
+
+ M, (1/n)          14.500   15.255   14.258   14.985
+ (dLV/dLP)t      -1.08194 -1.06043 -1.08877 -1.06728
+ (dLV/dLT)p        2.3581   1.8727   2.4959   1.9844
+ Cp, CAL/(G)(K)    3.8874   2.4544   4.3162   2.7219
+ GAMMAs            1.1288   1.1438   1.1266   1.1423
+ SON VEL,M/SEC     1542.2   1634.1   1537.9   1633.4
+
+ TRANSPORT PROPERTIES (GASES ONLY)
+   CONDUCTIVITY IN UNITS OF MILLICALORIES/(CM)(K)(SEC)
+
+ VISC,MILLIPOISE   1.1412   1.2740   1.1244   1.2589
+
+  WITH EQUILIBRIUM REACTIONS
+
+ Cp, CAL/(G)(K)    3.8874   2.4544   4.3162   2.7219
+ CONDUCTIVITY      9.1031   5.9556  10.0641   6.6597
+ PRANDTL NUMBER    0.4873   0.5250   0.4822   0.5145
+
+  WITH FROZEN REACTIONS
+
+ Cp, CAL/(G)(K)    0.7784   0.7936   0.7765   0.7920
+ CONDUCTIVITY      1.2903   1.4211   1.2823   1.4170
+ PRANDTL NUMBER    0.6884   0.7115   0.6809   0.7036
+
+ DETONATION PARAMETERS
+
+ P/P1              18.768   20.722   10.957   12.169
+ T/T1              12.324   14.367    7.200    8.419
+ M/M1              1.2073   1.2701   1.1872   1.2477
+ RHO/RHO1          1.8387   1.8321   1.8066   1.8035
+ DET MACH NUMBER   5.2718   5.5661   4.0115   4.2533
+ DET VEL,M/SEC     2835.5   2993.8   2778.3   2945.8
+
+ MOLE FRACTIONS
+
+ *H               0.08008  0.04717  0.09096  0.05644
+ HO2              0.00018  0.00068  0.00015  0.00057
+ *H2              0.16211  0.14397  0.16681  0.15214
+ H2O              0.53189  0.60992  0.50727  0.57898
+ H2O2             0.00002  0.00016  0.00001  0.00012
+ *O               0.03744  0.02347  0.04214  0.02792
+ *OH              0.14143  0.13758  0.14360  0.14414
+ *O2              0.04685  0.03705  0.04905  0.03969
+
+  * THERMODYNAMIC PROPERTIES FITTED TO 20000.K
+
+    PRODUCTS WHICH WERE CONSIDERED BUT WHOSE MOLE FRACTIONS
+    WERE LESS THAN 5.000000E-06 FOR ALL ASSIGNED CONDITIONS
+
+ O3              H2O(cr)         H2O(L)         
+
+ NOTE. WEIGHT FRACTION OF FUEL IN TOTAL FUELS AND OF OXIDANT IN TOTAL OXIDANTS
+
+
+
