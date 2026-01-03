@@ -1,0 +1,711 @@
+module equilibrium_test
+    use funit
+    use cea_equilibrium
+    use cea_thermo
+    use cea_mixture
+    use cea_units
+    use cea_param, only: R=>gas_constant
+
+    type(ThermoDB) :: all_thermo
+
+contains
+
+    @before
+    subroutine setup_mixture()
+        all_thermo = read_thermo('data/thermo.lib')
+    end subroutine
+
+    @test
+    subroutine test_h2_o2
+        type(Mixture) :: products
+        type(Mixture) :: reactants
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        integer :: num_eqn
+        real(dp) :: h_reac, p_reac, b_reac(2), weights(2)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reactants = Mixture(all_thermo, ['H2', 'O2'])
+        products  = Mixture(all_thermo, ['H  ', 'H2 ', 'H2O', 'O  ', 'O2 ', 'OH '])
+
+        solver = EqSolver(products, reactants)
+        @assertEqual(2, solver%num_reactants)
+        @assertEqual(6, solver%num_products)
+        @assertEqual(2, solver%num_elements)
+        @assertEqual(6, solver%num_gas)
+        @assertEqual(0, solver%num_condensed)
+        @assertEqual(4, solver%max_equations)
+
+        solution = EqSolution(solver)
+        @assertEqual(3800.0d0, solution%T)
+        @assertEqual(0.1d0/6, solution%nj(3))
+        @assertEqual(6, solution%thermo%num_species)
+        @assertEqual([4,5], shape(solution%G))
+        @assertEqual('  ', solution%constraints%type)
+        @assertFalse(any(solution%is_active))
+
+        ! Get the species weights
+        weights = reactants%weights_from_moles([1.0d0, 1.0d0])
+        weights = reactants%weights_from_of([0.0d0, 1.0d0], [1.0d0, 0.0d0], 15.87336d0)
+
+        ! Get the constraint values
+        h_reac = reactants%calc_enthalpy(weights, 2000.0d0)/R
+        p_reac = 1.01325d0  ! TODO: Appears to be p/pstd. Make SI?
+        b_reac = reactants%element_amounts_from_weights(weights)
+
+        solution%constraints = EqConstraints('hp', h_reac, p_reac, b_reac)
+
+        ! Test the initial matrix and solve
+        call solver%assemble_matrix(solution)
+        num_eqn = solution%num_equations(solver)
+        associate(G => solution%G(:num_eqn, :num_eqn+1))
+
+            @assertRelativelyEqual(0.16666666666666666d0, G(1,1), tol)
+            @assertRelativelyEqual(5.0000000000000003d-2, G(1,2), tol)
+            @assertRelativelyEqual(0.10000000000000001d0, G(1,3), tol)
+            @assertRelativelyEqual(0.29041578093904313d0, G(1,4), tol)
+            @assertRelativelyEqual(-2.8522519562949125d0, G(1,5), tol)
+
+            @assertRelativelyEqual(5.0000000000000003d-2, G(2,1), tol)
+            @assertRelativelyEqual(0.11666666666666667d0, G(2,2), tol)
+            @assertRelativelyEqual(8.3333333333333343d-2, G(2,3), tol)
+            @assertRelativelyEqual(0.35522308781408640d0, G(2,4), tol)
+            @assertRelativelyEqual(-2.5626653151659138d0, G(2,5), tol)
+
+            @assertRelativelyEqual(0.10000000000000001d0, G(3,1), tol)
+            @assertRelativelyEqual(8.3333333333333343d-2, G(3,2), tol)
+            @assertEqual          (0.0000000000000000d0,  G(3,3), tol)
+            @assertRelativelyEqual(0.50248557985367082d0, G(3,4), tol)
+            @assertRelativelyEqual(-2.5915522029331699d0, G(3,5), tol)
+
+            @assertRelativelyEqual(0.29041578093904313d0, G(4,1), tol)
+            @assertRelativelyEqual(0.35522308781408640d0, G(4,2), tol)
+            @assertRelativelyEqual(0.50248557985367082d0, G(4,3), tol)
+            @assertRelativelyEqual(4.60022515802027690d0, G(4,4), tol)
+            @assertRelativelyEqual(-10.014870869177022d0, G(4,5), tol)
+
+        !     ! Verify linear system solution
+        !     call gauss(G)
+        !     associate(x => G(:,5))
+        !         @assertRelativelyEqual(-25.321369928681698d0, x(1), tol)
+        !         @assertRelativelyEqual(-6.0940545837333620d0, x(2), tol)
+        !         @assertRelativelyEqual(-6.4123713125636197d0, x(3), tol)
+        !         @assertRelativelyEqual(-8.7254316612002487d0, x(4), tol)
+        !         @assertRelativelyEqual(-15.278482720993097d0, x(5), tol)
+        !         @assertRelativelyEqual( 1.8977355896870718d0, x(6), tol)
+        !         @assertRelativelyEqual(5.2564097517895050d-2, x(7), tol)
+        !     end associate
+
+        end associate
+
+        call solver%solve(solution, 'hp', h_reac, p_reac, weights)
+
+        @assertRelativelyEqual(3181.2589964650856d0,  solution%T, tol)
+        @assertRelativelyEqual(0.06590368364478945d0, solution%mole_fractions(1), tol)
+        @assertRelativelyEqual(0.06152807617606959d0, solution%mole_fractions(2), tol)
+        @assertRelativelyEqual(0.37638785326991414d0, solution%mole_fractions(3), tol)
+        @assertRelativelyEqual(0.09771754800744899d0, solution%mole_fractions(4), tol)
+        @assertRelativelyEqual(0.23381507062970186d0, solution%mole_fractions(5), tol)
+        @assertRelativelyEqual(0.16464776827208294d0, solution%mole_fractions(6), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_h2_air
+        type(Mixture) :: reac, prod
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        real(dp) :: weights(2), of_ratio, b_reac(5)
+        integer :: num_eqn
+        real(dp), parameter :: tol = 1.0d-6
+
+        reac = Mixture(all_thermo, ['H2 ', 'Air'])
+        prod = Mixture(all_thermo, [ &
+            'Ar  ', 'C   ', 'CO  ', 'CO2 ', 'H   ', &
+            'H2  ', 'H2O ', 'HNO ', 'HO2 ', 'HNO2', &
+            'HNO3', 'N   ', 'NH  ', 'NO  ', 'N2  ', &
+            'N2O3', 'O   ', 'O2  ', 'OH  ', 'O3  '  &
+        ])
+
+        solver = EqSolver(prod, reac)
+        solution = EqSolution(solver)
+
+        ! Get the oxidant to fuel ratio
+        of_ratio = reac%of_from_equivalence([0.0d0, 1.0d0], [1.0d0, 0.0d0], 1.0d0)
+        @assertRelativelyEqual(34.296226d0, of_ratio, tol)
+        weights = reac%weights_from_of([0.0d0, 1.0d0], [1.0d0, 0.0d0], of_ratio)
+
+        b_reac = reac%element_amounts_from_weights(weights)
+        solution%constraints = EqConstraints('tp', 3000.0d0, 1.01325d0, b_reac)
+
+        ! Fix the temperature and update the thermo properties
+        solution%T = 3000.0d0
+        call solver%products%calc_thermo(solution%thermo, solution%T)
+
+        ! Test the initial matrix and solve
+        call solver%assemble_matrix(solution)
+        num_eqn = solution%num_equations(solver)
+        associate(G => solution%G(:num_eqn, :num_eqn+1))
+
+            @assertRelativelyEqual(5.0000000000000001d-003, G(1,1), tol)
+            @assertEqual(          0.0000000000000000d0,    G(1,2))
+            @assertEqual(          0.0000000000000000d0,    G(1,3))
+            @assertEqual(          0.0000000000000000d0,    G(1,4))
+            @assertEqual(          0.0000000000000000d0,    G(1,5))
+            @assertRelativelyEqual(5.0000000000000001d-003, G(1,6), tol)
+            @assertRelativelyEqual( -0.13031894748131895d0, G(1,7), tol)
+
+            @assertEqual(          0.0000000000000000d0,    G(2,1))
+            @assertRelativelyEqual(1.4999999999999999d-002, G(2,2), tol)
+            @assertEqual(          0.0000000000000000d0,    G(2,3))
+            @assertEqual(          0.0000000000000000d0,    G(2,4))
+            @assertRelativelyEqual(1.4999999999999999d-002, G(2,5), tol)
+            @assertRelativelyEqual(1.4999999999999999d-002, G(2,6), tol)
+            @assertRelativelyEqual( -0.44592355349053348d0, G(2,7), tol)
+
+            @assertEqual(          0.0000000000000000d0,    G(3,1))
+            @assertEqual(          0.0000000000000000d0,    G(3,2))
+            @assertRelativelyEqual(7.5000000000000011E-002, G(3,3), tol)
+            @assertRelativelyEqual(2.0000000000000000E-002, G(3,4), tol)
+            @assertRelativelyEqual(5.5000000000000000E-002, G(3,5), tol)
+            @assertRelativelyEqual(5.5000000000000000E-002, G(3,6), tol)
+            @assertRelativelyEqual( -1.8255639471130116d0,    G(3,7), tol)
+
+            @assertEqual(          0.0000000000000000d0,    G(4,1))
+            @assertEqual(          0.0000000000000000d0,    G(4,2))
+            @assertRelativelyEqual(2.0000000000000000E-002, G(4,3), tol)
+            @assertRelativelyEqual(7.0000000000000007E-002, G(4,4), tol)
+            @assertRelativelyEqual(6.5000000000000002E-002, G(4,5), tol)
+            @assertRelativelyEqual(5.0000000000000000E-002, G(4,6), tol)
+            @assertRelativelyEqual( -1.7647393742654183d0,  G(4,7), tol)
+
+        end associate
+
+        call solver%solve(solution, 'tp', 3000.0d0, 1.01325d0, weights)
+
+        ! Basic testing
+        @assertEqual( 2, solver%num_reactants)
+        @assertEqual(20, solver%num_products)
+        @assertEqual( 5, solver%num_elements)
+        @assertEqual(20, solver%num_gas)
+        @assertEqual( 0, solver%num_condensed)
+        @assertEqual( 7, solver%max_equations)
+
+        ! Check the solution
+        @assertRelativelyEqual(-8.0656088776551407d0, solution%ln_nj(1), tol)
+        @assertRelativelyEqual(-34.448758571083658d0, solution%ln_nj(2), tol)
+        @assertRelativelyEqual(-11.793089100129002d0, solution%ln_nj(3), tol)
+        @assertRelativelyEqual(-12.669441114146762d0, solution%ln_nj(4), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_example2
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        type(Mixture) :: reac, prod
+        real(dp) :: v_reac, weights(2), of_ratio
+        real(dp), parameter :: tol = 1.0d-6
+
+        reac = Mixture(all_thermo, ['H2 ', 'Air'])
+        prod = Mixture(all_thermo, [ &
+            'Ar  ', 'C   ', 'CO  ', 'CO2 ', 'H   ', &
+            'H2  ', 'H2O ', 'HNO ', 'HO2 ', 'HNO2', &
+            'HNO3', 'N   ', 'NH  ', 'NO  ', 'N2  ', &
+            'N2O3', 'O   ', 'O2  ', 'OH  ', 'O3  '  &
+        ])
+
+        solver = EqSolver(prod, reac)
+        solution = EqSolution(solver)
+
+        ! Get the oxidant to fuel ratio
+        of_ratio = reac%of_from_equivalence([0.0d0, 1.0d0], [1.0d0, 0.0d0], 1.0d0)
+        weights = reac%weights_from_of([0.0d0, 1.0d0], [1.0d0, 0.0d0], of_ratio)
+
+        v_reac = convert_units_to_si(1.0d0/9.1864d-05, "cm**3/g")
+        call solver%solve(solution, 'tv', 3000.0d0, v_reac, weights)
+
+        ! Check the solution
+        @assertRelativelyEqual(-8.0656088776551442d0, solution%ln_nj(1), tol)
+        @assertRelativelyEqual(-34.449289176386642d0, solution%ln_nj(2), tol)
+        @assertRelativelyEqual(-11.793288543740704d0, solution%ln_nj(3), tol)
+        @assertRelativelyEqual(-12.669309396067186d0, solution%ln_nj(4), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_example3
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        type(Mixture) :: reac, prod
+        integer :: num_eqn
+        real(dp) :: b_reac(5), h_reac, p_reac, weights(3)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reac = Mixture(all_thermo, ['Air            ', 'C7H8(L)        ', 'C8H18(L),n-octa'])
+        prod = Mixture(all_thermo, [character(15) :: &
+            '(HCOOH)2',        'Ar',              'C',               'C2',              'CH', &
+            'CN',              'CO',              'CO2',             'H',               'H2', &
+            'N',               'N2',              'NH',              'NO',              'O',  &
+            'O2',              'OH',              'C10H8,naphthale', 'C2H',             'C2H2,acetylene', &
+            'C2H2,vinylidene', 'C2H3,vinyl',      'C2H4',            'C2H4O,ethylen-o', 'C2H5', &
+            'C2H5OH',          'C2H6',            'C3H3,1-propynl',  'C3H3,2-propynl',  'C3H6O,acetone', &
+            'C3H6O,propanal',  'C3H6O,propylox',  'C4H2,butadiyne',  'C4H6,1butyne',    'C4H6,2butyne', &
+            'C6H14,n-hexane',  'C7H16,2-methylh', 'CH2',             'CH2CO,ketene',    'CH2OH', &
+            'CH3',             'CH3CHO,ethanal',  'CH3CN',           'CH3CO,acetyl',    'CH3COOH', &
+            'CH3N2CH3',        'CH3O',            'CH3O2CH3',        'CH3OCH3',         'CH3OH', &
+            'CH3OOH',          'CH4',             'CNCOCN',          'CNN',             'COOH', &
+            'H2O',             'H2O2',            'HCCN',            'HCCO',            'HCHO,formaldehy', &
+            'HCN',             'HCO',             'HCOOH',           'HNC',             'HNCO', &
+            'HNO',             'HNO2',            'HNO3',            'HO(CO)2OH',       'HO2', &
+            'N2H2',            'N2H4',            'N2O',             'N2O3',            'N2O4', &
+            'N2O5',            'N3',              'N3H',             'NCN',             'NCO', &
+            'NH2',             'NH2NO2',          'NH2OH',           'NH3',             'NO2', &
+            'NO3',             'O(CH)2O',         'O3',              'OCCN',            'OHCH2COOH', &
+            'C(gr)',           'H2O(cr)'  &
+        ])
+
+        solver = EqSolver(prod, reac, 1d-15)
+        solution = EqSolution(solver)
+
+        ! Get the reactant weights
+        weights = reac%weights_from_of([1.0d0, 0.0d0, 0.0d0], [0.0d0, 0.4d0, 0.6d0], 17.0d0)
+
+        ! Get the constraint values
+        h_reac = reac%calc_enthalpy(weights, [700.0d0, 298.15d0, 298.15d0])/R
+        p_reac = 100.0d0
+        b_reac = reac%element_amounts_from_weights(weights)
+        solution%constraints = EqConstraints('hp', h_reac, p_reac, b_reac)
+
+        ! Check the problem inputs
+        @assertRelativelyEqual(38.226853674667140d0, h_reac, tol)
+        @assertRelativelyEqual(3.0535773627690611d-004, b_reac(1), tol)
+        @assertRelativelyEqual(4.0331841623880565d-003, b_reac(2), tol)
+        @assertRelativelyEqual(7.1820928231394231d-003, b_reac(3), tol)
+        @assertRelativelyEqual(5.0920562689687004d-002, b_reac(4), tol)
+        @assertRelativelyEqual(1.3681265623537326d-002, b_reac(5), tol)
+
+        ! Test the initial matrix
+        call solver%assemble_matrix(solution)
+        num_eqn = solution%num_equations(solver)
+        associate(G => solution%G(:num_eqn, :num_eqn+1))
+            @assertRelativelyEqual( 1.11111111111111110d-3, G(1,1), tol)
+            @assertEqual          ( 0.00000000000000000d+0, G(1,2))
+            @assertEqual          ( 0.00000000000000000d+0, G(1,3))
+            @assertEqual          ( 0.00000000000000000d+0, G(1,4))
+            @assertEqual          ( 0.00000000000000000d+0, G(1,5))
+            @assertRelativelyEqual( 1.11111111111111110d-3, G(1,6), tol)
+            @assertRelativelyEqual( 2.55983187165061220d-3, G(1,7), tol)
+            @assertRelativelyEqual(-2.58917051245298390d-2, G(1,8), tol)
+
+            @assertEqual          ( 0.00000000000000000d+0, G(2,1))
+            @assertRelativelyEqual( 0.45444444444444448d+0, G(2,2), tol)
+            @assertRelativelyEqual( 0.66555555555555546d+0, G(2,3), tol)
+            @assertRelativelyEqual( 2.77777777777777760d-2, G(2,4), tol)
+            @assertRelativelyEqual( 8.66666666666666420d-2, G(2,5), tol)
+            @assertRelativelyEqual( 0.13888888888888884d+0, G(2,6), tol)
+            @assertRelativelyEqual( 2.84784273285956680d+0, G(2,7), tol)
+            @assertRelativelyEqual(-8.19043820135115830d+0, G(2,8), tol)
+
+            @assertEqual          ( 0.00000000000000000d+0, G(3,1))
+            @assertRelativelyEqual( 0.66555555555555546d+0, G(3,2), tol)
+            @assertRelativelyEqual( 1.36444444444444390d+0, G(3,3), tol)
+            @assertRelativelyEqual( 5.55555555555555590d-2, G(3,4), tol)
+            @assertRelativelyEqual( 0.17111111111111105d+0, G(3,5), tol)
+            @assertRelativelyEqual( 0.24444444444444435d+0, G(3,6), tol)
+            @assertRelativelyEqual( 4.37433718436243080d+0, G(3,7), tol)
+            @assertRelativelyEqual(-1.52104966468274600d+1, G(3,8), tol)
+
+            @assertEqual          ( 0.00000000000000000d+0, G(4,1))
+            @assertRelativelyEqual( 2.77777777777777760d-2, G(4,2), tol)
+            @assertRelativelyEqual( 5.55555555555555590d-2, G(4,3), tol)
+            @assertRelativelyEqual( 9.44444444444444420d-2, G(4,4), tol)
+            @assertRelativelyEqual( 5.33333333333333370d-2, G(4,5), tol)
+            @assertRelativelyEqual( 5.44444444444444480d-2, G(4,6), tol)
+            @assertRelativelyEqual( 0.80227474315999370d+0, G(4,7), tol)
+            @assertRelativelyEqual(-2.01895109453832560d+0, G(4,8), tol)
+
+            @assertEqual          ( 0.00000000000000000d+0, G(5,1))
+            @assertRelativelyEqual( 8.66666666666666420d-2, G(5,2), tol)
+            @assertRelativelyEqual( 0.17111111111111105d+0, G(5,3), tol)
+            @assertRelativelyEqual( 5.33333333333333370d-2, G(5,4), tol)
+            @assertRelativelyEqual( 0.21888888888888888d+0, G(5,5), tol)
+            @assertRelativelyEqual( 9.44444444444444000d-2, G(5,6), tol)
+            @assertRelativelyEqual( 0.70624215515379962d+0, G(5,7), tol)
+            @assertRelativelyEqual(-5.21867227439174820d+0, G(5,8), tol)
+
+            !@assertEqual          ( 0.00000000000000000d+0, G(6,6))
+            @assertRelativelyEqual( 1.32501851871760020d+0, G(6,7), tol)
+            @assertRelativelyEqual(-4.29037055774974710d+0, G(6,8), tol)
+            @assertRelativelyEqual( 28.1979101639440270d+0, G(7,7), tol)
+            @assertRelativelyEqual(-59.2633712918783640d+0, G(7,8), tol)
+
+            ! Verify linear system solution
+            call gauss(G)
+            associate(x => G(:,8))
+                @assertRelativelyEqual(-25.321369928681698d0, x(1), tol)
+                @assertRelativelyEqual(-6.0940545837333620d0, x(2), tol)
+                @assertRelativelyEqual(-6.4123713125636197d0, x(3), tol)
+                @assertRelativelyEqual(-8.7254316612002487d0, x(4), tol)
+                @assertRelativelyEqual(-15.278482720993097d0, x(5), tol)
+                @assertRelativelyEqual( 1.8977355896870718d0, x(6), tol)
+                @assertRelativelyEqual(5.2564097517895050d-2, x(7), tol)
+            end associate
+
+        end associate
+
+        ! Test the full solve
+        call solver%solve(solution, 'hp', h_reac, p_reac, weights)
+
+        @assertRelativelyEqual(2418.6601555314624d0, solution%T, tol)
+        @assertRelativelyEqual(3.0535773590476429d-4, solution%nj(2), tol)
+        @assertRelativelyEqual(5.7795715001853539d-5, solution%nj(7), tol)
+        @assertRelativelyEqual(3.9753866703644194d-3, solution%nj(8), tol)
+        @assertRelativelyEqual(3.5412641505726560d-3, solution%nj(56), tol)
+        @assertRelativelyEqual(2.5342964891003347d-2, solution%nj(12), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_example4
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        type(Mixture) :: reac, prod
+        real(dp) :: v_reac, u_reac, weights(3)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reac = Mixture(all_thermo, ['Air            ', 'C7H8(L)        ', 'C8H18(L),n-octa'])
+        prod = Mixture(all_thermo, [character(15) :: &
+            '(HCOOH)2',        'Ar',              'C',               'C2',              'CH', &
+            'CN',              'CO',              'CO2',             'H',               'H2', &
+            'N',               'N2',              'NH',              'NO',              'O',  &
+            'O2',              'OH',              'C10H8,naphthale', 'C2H',             'C2H2,acetylene', &
+            'C2H2,vinylidene', 'C2H3,vinyl',      'C2H4',            'C2H4O,ethylen-o', 'C2H5', &
+            'C2H5OH',          'C2H6',            'C3H3,1-propynl',  'C3H3,2-propynl',  'C3H6O,acetone', &
+            'C3H6O,propanal',  'C3H6O,propylox',  'C4H2,butadiyne',  'C4H6,1butyne',    'C4H6,2butyne', &
+            'C6H14,n-hexane',  'C7H16,2-methylh', 'CH2',             'CH2CO,ketene',    'CH2OH', &
+            'CH3',             'CH3CHO,ethanal',  'CH3CN',           'CH3CO,acetyl',    'CH3COOH', &
+            'CH3N2CH3',        'CH3O',            'CH3O2CH3',        'CH3OCH3',         'CH3OH', &
+            'CH3OOH',          'CH4',             'CNCOCN',          'CNN',             'COOH', &
+            'H2O',             'H2O2',            'HCCN',            'HCCO',            'HCHO,formaldehy', &
+            'HCN',             'HCO',             'HCOOH',           'HNC',             'HNCO', &
+            'HNO',             'HNO2',            'HNO3',            'HO(CO)2OH',       'HO2', &
+            'N2H2',            'N2H4',            'N2O',             'N2O3',            'N2O4', &
+            'N2O5',            'N3',              'N3H',             'NCN',             'NCO', &
+            'NH2',             'NH2NO2',          'NH2OH',           'NH3',             'NO2', &
+            'NO3',             'O(CH)2O',         'O3',              'OCCN',            'OHCH2COOH', &
+            'C(gr)',           'H2O(cr)'  &
+        ])
+
+        solver = EqSolver(prod, reac, 1d-15)
+        solution = EqSolution(solver)
+
+        ! Get the reactant weights
+        weights = reac%weights_from_of([1.0d0, 0.0d0, 0.0d0], [0.0d0, 0.4d0, 0.6d0], 17.0d0)
+
+        v_reac = 1.0d0/14.428d0
+        u_reac = -45.1343d0
+
+        ! Test the full solve
+        call solver%solve(solution, 'uv', u_reac, v_reac, weights)
+
+        @assertRelativelyEqual(2418.5382574474097d0, solution%T, tol)
+        @assertRelativelyEqual(-52.374890133250204d0, solution%ln_nj(1), tol)
+        @assertRelativelyEqual(-8.0940265640663025d0, solution%ln_nj(2), tol)
+        @assertRelativelyEqual(-42.957051147438705d0, solution%ln_nj(3), tol)
+        @assertRelativelyEqual(-9.7591561204275976d0, solution%ln_nj(7), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_sp_problem
+        type(Mixture) :: products
+        type(Mixture) :: reactants
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        real(dp) :: s_reac, p_reac, weights(2)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reactants = Mixture(all_thermo, ['H2', 'O2'])
+        products  = Mixture(all_thermo, ['H  ', 'H2 ', 'H2O', 'O  ', 'O2 ', 'OH '])
+
+        solver = EqSolver(products, reactants)
+        solution = EqSolution(solver)
+
+        weights = reactants%weights_from_moles([1.0d0, 1.0d0])
+        s_reac = 1.804d0
+        p_reac = 1.01325d0
+
+        call solver%solve(solution, 'sp', s_reac, p_reac, weights)
+
+        @assertRelativelyEqual(3244.7454823232674d0,  solution%T, tol)
+        @assertRelativelyEqual(-5.3971690318524281d0, solution%ln_nj(1), tol)
+        @assertRelativelyEqual(-5.5822036166964706d0, solution%ln_nj(2), tol)
+        @assertRelativelyEqual(-3.9841684012236138d0, solution%ln_nj(3), tol)
+        @assertRelativelyEqual(-5.0642456920269865d0, solution%ln_nj(4), tol)
+        @assertRelativelyEqual(-4.6538971360500030d0, solution%ln_nj(6), tol)
+        @assertRelativelyEqual(-4.4084879383149573d0, solution%ln_nj(5), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_sv_problem
+        type(Mixture) :: products
+        type(Mixture) :: reactants
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        real(dp) :: s_reac, v_reac, weights(2)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reactants = Mixture(all_thermo, ['H2', 'O2'])
+        products  = Mixture(all_thermo, ['H  ', 'H2 ', 'H2O', 'O  ', 'O2 ', 'OH '])
+
+        solver = EqSolver(products, reactants)
+        solution = EqSolution(solver)
+
+        weights = reactants%weights_from_moles([1.0d0, 1.0d0])
+        s_reac = 1.804d0
+        v_reac = 1.0d0/0.072081d0
+
+        call solver%solve(solution, 'sv', s_reac, v_reac, weights)
+
+        @assertRelativelyEqual(3258.5925134713739d0,  solution%T, tol)
+        @assertRelativelyEqual(-5.3856081862190726d0, solution%ln_nj(1), tol)
+        @assertRelativelyEqual(-5.5747945411551276d0, solution%ln_nj(2), tol)
+        @assertRelativelyEqual(-3.9891190704470452d0, solution%ln_nj(3), tol)
+        @assertRelativelyEqual(-5.0532891277264751d0, solution%ln_nj(4), tol)
+        @assertRelativelyEqual(-4.6460395167270923d0, solution%ln_nj(6), tol)
+        @assertRelativelyEqual(-4.4106610522293108d0, solution%ln_nj(5), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_condensed_problem
+        type(Mixture) :: products
+        type(Mixture) :: reactants
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        real(dp) :: h_reac, p_reac, weights(2)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reactants = Mixture(all_thermo, ['Air    ', 'H2O(cr)'])
+        products  = Mixture(all_thermo, ['Ar     ', 'O2     ', 'N2     ', 'CO2    ', 'H2O    ', 'H2O(L) ', 'H2O(cr)'])
+
+        solver = EqSolver(products, reactants)
+        solution = EqSolution(solver)
+
+        weights = reactants%weights_from_of([1.0d0, 0.0d0], [0.0d0, 1.0d0], 100.0d0)
+        h_reac = reactants%calc_enthalpy(weights, [300.0d0, 225.0d0])/R
+        p_reac = 1.0d0
+
+        call solver%solve(solution, 'hp', h_reac, p_reac, weights)
+
+        @assertRelativelyEqual(280.02206703353028d0,  solution%T, tol)
+        @assertRelativelyEqual(-8.0468184810795194d0, solution%ln_nj(1), tol)
+        @assertRelativelyEqual(-11.426361993172849d0, solution%ln_nj(4), tol)
+        @assertRelativelyEqual(-7.9775192465687397d0, solution%ln_nj(5), tol)
+        @assertRelativelyEqual(-3.6234275536806750d0, solution%ln_nj(3), tol)
+        @assertRelativelyEqual(-4.9391886426482596d0, solution%ln_nj(2), tol)
+        @assertRelativelyEqual(2.0649897863602413d-4, solution%nj(6), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_trim_phase
+        character(15), allocatable :: trim_name
+        trim_name = trim_phase('H2O(cr)        ')
+        @assertEqual('H2O', trim_name)
+    end subroutine
+
+    ! @test
+    ! subroutine tes_get_species_other_phases
+
+    !     integer, allocatable :: index_list(:)
+    !     index_list = get_species_other_phases('H2O(cr)        ', &
+    !         [character(15) :: "H2O(L)", "H2O(cr)", "C(gr)", "H2O(s)"])
+
+    !     @assertEqual([1, 4], index_list)
+
+    ! end subroutine
+
+    @test
+    subroutine test_partials
+
+        type(Mixture) :: reac, prod
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        type(EqPartials) :: partials
+        real(dp) :: weights(2), of_ratio, b_reac(5)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reac = Mixture(all_thermo, ['H2 ', 'Air'])
+        prod = Mixture(all_thermo, [ &
+            'Ar  ', 'C   ', 'CO  ', 'CO2 ', 'H   ', &
+            'H2  ', 'H2O ', 'HNO ', 'HO2 ', 'HNO2', &
+            'HNO3', 'N   ', 'NH  ', 'NO  ', 'N2  ', &
+            'N2O3', 'O   ', 'O2  ', 'OH  ', 'O3  '  &
+        ])
+
+        solver = EqSolver(prod, reac)
+        solution = EqSolution(solver)
+
+        ! Get the oxidant to fuel ratio
+        of_ratio = reac%of_from_equivalence([0.0d0, 1.0d0], [1.0d0, 0.0d0], 1.0d0)
+        @assertRelativelyEqual(34.296226d0, of_ratio, tol)
+        weights = reac%weights_from_of([0.0d0, 1.0d0], [1.0d0, 0.0d0], of_ratio)
+
+        b_reac = reac%element_amounts_from_weights(weights)
+        solution%constraints = EqConstraints('tp', 3000.0d0, 1.01325d0, b_reac)
+
+        ! Fix the temperature and update the thermo properties
+        solution%T = 3000.0d0
+        call solver%products%calc_thermo(solution%thermo, solution%T)
+
+        call solver%solve(solution, 'tp', 3000.0d0, 1.01325d0, weights, partials)
+
+        @assertRelativelyEqual( 1.6957400222123469d0, partials%dlnV_dlnT, tol)
+        @assertRelativelyEqual(-1.0344181562262706d0, partials%dlnV_dlnP, tol)
+
+        @assertRelativelyEqual(0.84623025774613159d0, partials%cp_eq, tol)
+        @assertRelativelyEqual(1.1311926485772785d0, partials%gamma_s, tol)
+
+    end subroutine
+
+    @test
+    subroutine test_ionized
+
+        type(Mixture) :: products
+        type(Mixture) :: reactants
+        type(EqSolver) :: solver
+        type(EqSolution) :: soln
+        character(snl), allocatable :: product_names(:)
+        real(dp) :: p_reac, t_reac, weights(1)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reactants = Mixture(all_thermo, ['Air'], ions=.true.)
+        product_names = reactants%get_products(all_thermo, omit=["C(gr)"])
+        products = Mixture(all_thermo, product_names, ions=.true.)
+
+        solver = EqSolver(products, reactants, ions=.true.)
+        soln = EqSolution(solver)
+
+        weights = [1.0d0]
+        t_reac = 5000.0d0
+        p_reac = 0.0101325d0
+
+        call solver%solve(soln, 'tp', t_reac, p_reac, weights)
+
+        ! Testing products (in order): e-, Ar, Ar+, C, C+, C-, CO, CO+, CO2, CO2+, N, N+, N-, N2, N2+, N2-, O2, O2+, O2-
+        @assertRelativelyEqual(-12.070356495712987d0, soln%ln_nj(55), tol)
+        @assertRelativelyEqual(-8.0368688126426946d0, soln%ln_nj(1), tol)
+        @assertRelativelyEqual(-22.264240029189903d0, soln%ln_nj(2), tol)
+        @assertRelativelyEqual(-14.838922358373637d0, soln%ln_nj(3), tol)
+        @assertRelativelyEqual(-20.735101993506479d0, soln%ln_nj(4), tol)
+        @assertRelativelyEqual(-32.500783362184301d0, soln%ln_nj(5), tol)
+        @assertRelativelyEqual(-11.451439526036818d0, soln%ln_nj(23), tol)
+        @assertRelativelyEqual(-22.632392242196225d0, soln%ln_nj(24), tol)
+        @assertRelativelyEqual(-22.377017680700916d0, soln%ln_nj(25), tol)
+        @assertRelativelyEqual(-31.407105066987096d0, soln%ln_nj(26), tol)
+        @assertRelativelyEqual(-4.5563479759981425d0, soln%ln_nj(27), tol)
+        @assertRelativelyEqual(-16.829742821831005d0, soln%ln_nj(28), tol)
+        @assertRelativelyEqual(-24.603443181224556d0, soln%ln_nj(29), tol)
+        @assertRelativelyEqual(-3.8318205191336161d0, soln%ln_nj(30), tol)
+        @assertRelativelyEqual(-18.361166746337737d0, soln%ln_nj(31), tol)
+        @assertRelativelyEqual(-26.501061644411305d0, soln%ln_nj(32), tol)
+        @assertRelativelyEqual(-13.906923284689297d0, soln%ln_nj(50), tol)
+        @assertRelativelyEqual(-21.381854649368115d0, soln%ln_nj(51), tol)
+        @assertRelativelyEqual(-32.784807259253490d0, soln%ln_nj(52), tol)
+
+    end subroutine
+
+    @test
+    subroutine test_negative_reactant
+        type(Mixture) :: products
+        type(Mixture) :: reactants
+        type(EqSolver) :: solver
+        type(EqSolution) :: solution
+        character(snl), allocatable :: product_names(:)
+        real(dp) :: t_reac, p_reac, weights(3)
+        real(dp), parameter :: tol = 1.0d-6
+
+        reactants = Mixture(all_thermo, ['Air   ', 'H2O   ', 'H2O(L)'])
+        product_names = reactants%get_products(all_thermo)
+        products = Mixture(all_thermo, product_names)
+
+        solver = EqSolver(products, reactants)
+        solution = EqSolution(solver)
+
+        weights = [0.9069637d0, 0.1813927d0, -0.0883564d0]
+        t_reac = 555.56d0
+        p_reac = convert_units_to_si(68.046d0, "atm")
+
+        call solver%solve(solution, 'tp', t_reac, p_reac, weights)
+
+        ! ! Products: Ar, CO2, H2O, N2, O2
+        ! write(*,*) "NEGATIVE REACTANTS"
+        ! write(*,*) "n = ", solution%n, abs((1.0d0/27.415d0)-solution%n)/(1.0d0/27.415d0)
+        ! write(*,*) "Ar = ", solution%nj(3), abs(2.9323946327273809d-4-solution%nj(3))/2.9323946327273809d-4
+        ! write(*,*) "CO2 = ", solution%nj(114), abs(9.9891136342931817d-6-solution%nj(114))/9.9891136342931817d-6
+        ! write(*,*) "H2O = ", solution%nj(118), abs(5.1642986488878171d-3-solution%nj(118))/5.1642986488878171d-3
+        ! write(*,*) "N2 = ", solution%nj(134), abs(2.4449868424820789d-2-solution%nj(134))/2.4449868424820789d-2
+        ! write(*,*) "O2 = ", solution%nj(155), abs(6.5591518211682090d-3-solution%nj(155))/6.5591518211682090d-3
+
+        @assertRelativelyEqual(1.0d0/27.415d0, solution%n, 1.d-5)
+        @assertRelativelyEqual(2.9323946327273809d-4,   solution%nj(3), tol)
+        @assertRelativelyEqual(9.9891136342931817d-6, solution%nj(114), tol)
+        @assertRelativelyEqual(5.1642986488878171d-3, solution%nj(118), tol)
+        @assertRelativelyEqual(2.4449868424820789d-2, solution%nj(134), tol)
+        @assertRelativelyEqual(6.5591518211682090d-3, solution%nj(155), tol)
+
+    end subroutine
+
+    ! @test
+    ! subroutine test_inert_reactant
+    !     type(Mixture) :: products
+    !     type(Mixture) :: reactants
+    !     type(EqSolver) :: solver
+    !     type(EqSolution) :: solution
+    !     character(snl), allocatable :: product_names(:)
+    !     real(dp) :: t_reac, p_reac, weights(3)
+    !     real(dp), parameter :: tol = 1.0d-3
+
+    !     ! NOTE: set thermo to thermo-inert.lib before running this test
+
+    !     reactants = Mixture(all_thermo, ['Air      ', 'JP-4     ', 'InertJP-4'])
+    !     product_names = reactants%get_products(all_thermo)
+    !     products = Mixture(all_thermo, product_names)
+
+    !     solver = EqSolver(products, reactants)
+    !     solution = EqSolution(solver)
+
+    !     weights = [0.95d0, 0.025d0, 0.025d0]
+    !     t_reac = 555.56d0
+    !     p_reac = convert_units_to_si(68.046d0, "atm")
+
+    !     call solver%solve(solution, 'tp', t_reac, p_reac, weights)
+
+    !     ! Products:
+    !     ! write(*,*) "INERT REACTANTS"
+    !     ! write(*,*) "Ar = ", solution%ln_nj(3), abs(-8.0881614446139025-solution%ln_nj(3))/8.0881614446139025
+    !     ! write(*,*) "CO2 = ", solution%ln_nj(114), abs(-6.3196848293817531-solution%ln_nj(114))/6.3196848293817531
+    !     ! write(*,*) "H2O = ", solution%ln_nj(118), abs(-6.3559720462738909-solution%ln_nj(118))/6.3559720462738909
+    !     ! write(*,*) "InertCH4 = ", solution%ln_nj(135), abs(-7.3579377957440624-solution%ln_nj(135))/7.3579377957440624
+    !     ! write(*,*) "InertC10H8 = ", solution%ln_nj(133), abs(-9.0683751932082703-solution%ln_nj(133))/9.0683751932082703
+    !     ! write(*,*) "InertH2 = ", solution%ln_nj(137), abs(-14.990974766155743-solution%ln_nj(137))/14.990974766155743
+    !     ! write(*,*) "N2 = ", solution%ln_nj(139), abs(-3.6647707468791499-solution%ln_nj(139))/3.6647707468791499
+    !     ! write(*,*) "O2 = ", solution%ln_nj(160), abs(-5.4697759938827026-solution%ln_nj(160))/5.4697759938827026
+
+    !     ! Products: Ar, CO2, H2O, InertCH4, InertC10H8, N2, O2
+    !     @assertRelativelyEqual(1.0d0/29.053d0, solution%n, tol)
+    !     @assertRelativelyEqual(-8.0881614446139025, solution%ln_nj(3), tol)
+    !     @assertRelativelyEqual(-6.3196848293817531, solution%ln_nj(114), tol)
+    !     @assertRelativelyEqual(-6.3559720462738909, solution%ln_nj(118), tol)
+    !     @assertRelativelyEqual(-7.3579377957440624, solution%ln_nj(135), tol)
+    !     @assertRelativelyEqual(-9.0683751932082703, solution%ln_nj(133), tol)
+    !     @assertRelativelyEqual(-14.990974766155743, solution%ln_nj(137), tol)
+    !     @assertRelativelyEqual(-3.6647707468791499, solution%ln_nj(139), tol)
+    !     @assertRelativelyEqual(-5.4697759938827026, solution%ln_nj(160), tol)
+
+    ! end subroutine
+
+end module
