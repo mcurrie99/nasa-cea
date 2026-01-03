@@ -1,0 +1,10 @@
+[package]
+name = "cea-sys"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = ["crates/cea-sys", "crates/cea"]
+resolver = "2"
+
+[dependencies]
