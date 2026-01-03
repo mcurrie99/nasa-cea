@@ -1,0 +1,194 @@
+
+ *******************************************************************************
+
+         NASA-GLENN CHEMICAL EQUILIBRIUM PROGRAM CEA2, MAY 21, 2004
+                   BY  BONNIE MCBRIDE AND SANFORD GORDON
+      REFS: NASA RP-1311, PART I, 1994 AND NASA RP-1311, PART II, 1996
+
+ *******************************************************************************
+
+
+
+ #  EXAMPLE 11:
+ #     (a)  Rocket problem with an infinite-area combustor (rocket).
+ #     (b)  Reactants are Li(cr) at 298.15 K and F2(L) at 85.02 K.
+ #          Enthalpies and "exploded" formulas are to be taken from
+ #          thermo.lib.  Thus this information is not given.
+ #     (c)  Relative amounts of reactants are given as moles.
+ #     (d)  Chamber pressure is 1000 psia (p,psia =1000).
+ #     (e)  Ionized species are to be included in the products (ions).
+ #     (f)  Only equilibrium calculations are to be performed (equilibrium).
+ #     (g)  For exit points, one pressure ratio (pi/p=68.0457), one
+ #          subsonic area ratio (sub,ae/at=10), and three supersonic area ratios
+ #          (sup,ae/at=10,20,100) are to be included.
+
+ reac   fuel = Li(cr) moles=   1.    t(k)=298.15
+        oxid = F2(L)  moles= .5556   t(k)=85.02
+ prob   case=11 rocket  equilibrium  p,psia=1000 ions
+         pi/p=68.0457, sub,ae/at=10, sup,ae/at=10,20,100
+ output siunits transport
+ end
+
+ OPTIONS: TP=F  HP=F  SP=F  TV=F  UV=F  SV=F  DETN=F  SHOCK=F  REFL=F  INCD=F
+ RKT=T  FROZ=F  EQL=T  IONS=T  SIUNIT=T  DEBUGF=F  SHKDBG=F  DETDBG=F  TRNSPT=T
+
+ TRACE= 0.00E+00  S/R= 0.000000E+00  H/R= 0.000000E+00  U/R= 0.000000E+00
+
+ Pc,BAR =    68.947304
+
+ Pc/P =    68.0457
+
+ SUBSONIC AREA RATIOS =    10.0000
+
+ SUPERSONIC AREA RATIOS =    10.0000    20.0000   100.0000
+
+ NFZ=  1  Mdot/Ac= 0.000000E+00  Ac/At= 0.000000E+00
+
+    REACTANT           MOLES    (ENERGY/R),K   TEMP,K  DENSITY
+        EXPLODED FORMULA
+ F: Li(cr)           1.000000  -0.163988E-06   298.15  0.0000
+          LI 1.00000
+ O: F2(L)            0.555600  -0.157448E+04    85.02  0.0000
+          F  2.00000
+
+  SPECIES BEING CONSIDERED IN THIS SYSTEM
+ (CONDENSED PHASE MAY HAVE NAME LISTED SEVERAL TIMES)
+  LAST thermo.inp UPDATE:    9/09/04
+
+  g12/98  *e-              g 5/97  *F               g 3/97  *F+
+  g 1/98  *F-              tpis89  F2               g 7/97  *Li
+  g 3/97  *Li+             g 1/98  *Li-             tpis89  LiF
+  j12/83  Li2              tpis82  Li2+             tpis82  Li2F2
+  tpis82  Li3+             tpis82  Li3F3            tpis82  Li(cr)
+  tpis82  Li(cr)           tpis82  Li(L)            tpis82  LiF(cr)
+  tpis82  LiF(cr)          tpis82  LiF(L)
+
+ SPECIES WITH TRANSPORT PROPERTIES
+
+        PURE SPECIES
+
+  e-                F2                Li
+
+     BINARY INTERACTIONS
+
+
+
+ O/F =   3.041496
+
+                       EFFECTIVE FUEL     EFFECTIVE OXIDANT        MIXTURE
+ ENTHALPY                  h(2)/R              h(1)/R               h0/R
+ (KG-MOL)(K)/KG       -0.23626012E-07     -0.41437073E+02     -0.31184169E+02
+
+ KG-FORM.WT./KG             bi(2)               bi(1)               b0i
+  *Li                  0.14407146E+00      0.00000000E+00      0.35648050E-01
+  *F                   0.00000000E+00      0.52636003E-01      0.39612113E-01
+  *e-                  0.00000000E+00      0.00000000E+00      0.00000000E+00
+
+ POINT ITN      T            LI          F           E
+   1   11    5680.806     -16.298     -19.927      -9.135
+ Pinf/Pt = 1.758047
+   2    4    5331.461     -16.621     -20.305      -9.769
+ Pinf/Pt = 1.754417
+   2    2    5332.685     -16.620     -20.304      -9.766
+   3    6    3508.666     -19.902     -22.630     -15.659
+   4    2    5678.545     -16.299     -19.930      -9.139
+   4    2    5679.719     -16.298     -19.929      -9.137
+   4    2    5679.486     -16.299     -19.929      -9.137
+   4    1    5679.460     -16.299     -19.929      -9.137
+   4    1    5679.459     -16.299     -19.929      -9.137
+   5    6    3416.040     -20.217     -22.691     -16.203
+   5    3    3470.906     -20.027     -22.657     -15.876
+   5    1    3470.831     -20.027     -22.657     -15.876
+   6    4    2935.588     -22.309     -22.752     -19.840
+   6    2    2926.666     -22.356     -22.750     -19.922
+   7    6    1931.240     -30.623     -22.342     -34.191
+   7    3    1955.906     -30.307     -22.341     -33.664
+   7    2    1955.978     -30.306     -22.341     -33.663
+
+
+
+
+
+              THEORETICAL ROCKET PERFORMANCE ASSUMING EQUILIBRIUM
+
+           COMPOSITION DURING EXPANSION FROM INFINITE AREA COMBUSTOR
+
+ Pin =  1000.0 PSIA
+ CASE = 11
+
+             REACTANT                       MOLES         ENERGY      TEMP
+                                                         KJ/KG-MOL      K
+ FUEL        Li(cr)                       1.0000000        -0.000    298.150
+ OXIDANT     F2(L)                        0.5556000    -13091.000     85.020
+
+ O/F=    3.04150  %FUEL= 24.743311  R,EQ.RATIO= 0.899928  PHI,EQ.RATIO= 0.899928
+
+                 CHAMBER   THROAT     EXIT     EXIT     EXIT     EXIT     EXIT
+ Pinf/P            1.0000   1.7544   68.046   1.0021   73.183   187.20  1577.37
+ P, BAR            68.947   39.299   1.0132   68.804  0.94212  0.36832  0.04371
+ T, K             5680.81  5332.69  3508.67  5679.46  3470.83  2926.67  1955.98
+ RHO, KG/CU M    3.2177 0 1.9944 0 8.6993-2 3.2120 0 8.1862-2 3.8253-2 6.9524-3
+ H, KJ/KG         -259.28 -1414.50 -7031.63  -263.73 -7115.90 -8109.51 -9765.47
+ U, KJ/KG        -2402.02 -3385.03 -8196.37 -2405.80 -8266.77 -9072.36 -10394.2
+ G, KJ/KG        -64725.7 -61930.4 -46848.4 -64714.9 -46503.3 -41321.6 -31962.1
+ S, KJ/(KG)(K)    11.3481  11.3481  11.3481  11.3481  11.3481  11.3481  11.3481
+
+ M, (1/n)          22.043   22.501   25.047   22.045   25.075   25.273   25.867
+ (dLV/dLP)t      -1.08153 -1.07213 -1.00886 -1.08149 -1.00790 -1.00204 -1.02331
+ (dLV/dLT)p        2.0387   1.9745   1.1704   2.0385   1.1524   1.0267   1.3473
+ Cp, KJ/(KG)(K)    6.7418   6.5700   2.6448   6.7414   2.5293   1.6315   3.1219
+ GAMMAs            1.1779   1.1725   1.1949   1.1779   1.1993   1.2667   1.1956
+ SON VEL,M/SEC     1588.7   1520.0   1179.7   1588.4   1174.8   1104.4    867.0
+ MACH NUMBER        0.000    1.000    3.120    0.059    3.152    3.588    5.029
+
+ TRANSPORT PROPERTIES (GASES ONLY)
+   CONDUCTIVITY IN UNITS OF MILLIWATTS/(CM)(K)
+
+ VISC,MILLIPOISE   1.4409   1.3876   1.0809   1.4407   1.0734  0.95798  0.73078
+
+  WITH EQUILIBRIUM REACTIONS
+
+ Cp, KJ/(KG)(K)    6.7418   6.5700   2.6448   6.7414   2.5293   1.6315   3.1219
+ CONDUCTIVITY     14.4392  13.6899   4.3206  14.4367   4.0890   2.2075   2.6677
+ PRANDTL NUMBER    0.6728   0.6659   0.6617   0.6727   0.6640   0.7080   0.8552
+
+  WITH FROZEN REACTIONS
+
+ Cp, KJ/(KG)(K)    1.6854   1.6503   1.5156   1.6852   1.5137   1.4904   1.4584
+ CONDUCTIVITY      3.1519   3.0140   2.2917   3.1513   2.2743   2.0066   1.4888
+ PRANDTL NUMBER    0.7705   0.7597   0.7149   0.7704   0.7145   0.7115   0.7159
+
+ PERFORMANCE PARAMETERS
+
+ Ae/At                      1.0000   9.4685   10.000   10.000   20.000   100.00
+ CSTAR, M/SEC               2274.4   2274.4   2274.4   2274.4   2274.4   2274.4
+ CF                         0.6683   1.6181   0.0415   1.6282   1.7422   1.9171
+ Ivac, M/SEC                2816.4   3996.8  22791.2   4013.9   4205.4   4504.5
+ Isp, M/SEC                 1520.0   3680.3     94.4   3703.1   3962.4   4360.3
+
+
+ MOLE FRACTIONS
+
+ *e-              0.00289  0.00232  0.00009  0.00289  0.00008  0.00000  0.00000
+ *F               0.20853  0.19341  0.10760  0.20848  0.10664  0.10062  0.10253
+ *F-              0.00458  0.00359  0.00028  0.00457  0.00025  0.00004  0.00000
+ F2               0.00002  0.00001  0.00000  0.00002  0.00000  0.00000  0.00000
+ *Li              0.11766  0.10160  0.00822  0.11760  0.00716  0.00043  0.00000
+ *Li+             0.00733  0.00584  0.00038  0.00732  0.00033  0.00004  0.00000
+ *Li-             0.00002  0.00001  0.00000  0.00002  0.00000  0.00000  0.00000
+ LiF              0.65715  0.69175  0.88259  0.65727  0.88467  0.89729  0.87316
+ Li2              0.00021  0.00010  0.00000  0.00021  0.00000  0.00000  0.00000
+ Li2+             0.00017  0.00008  0.00000  0.00017  0.00000  0.00000  0.00000
+ Li2F2            0.00144  0.00126  0.00084  0.00144  0.00085  0.00158  0.02395
+ Li3F3            0.00000  0.00000  0.00000  0.00000  0.00000  0.00000  0.00035
+
+  * THERMODYNAMIC PROPERTIES FITTED TO 20000.K
+
+    PRODUCTS WHICH WERE CONSIDERED BUT WHOSE MOLE FRACTIONS
+    WERE LESS THAN 5.000000E-06 FOR ALL ASSIGNED CONDITIONS
+
+ *F+             Li3+            Li(cr)          Li(L)           LiF(cr)
+ LiF(L)
+
+
+
