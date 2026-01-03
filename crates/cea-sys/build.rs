@@ -1,16 +1,14 @@
-use std::{env, path::{Path, PathBuf}};
+use std::{
+    env,
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
+
 use walkdir::WalkDir;
 
-fn find_named_file(root: &Path, filename: &str) -> Option<PathBuf> {
-    for entry in WalkDir::new(root).into_iter().filter_map(Result::ok) {
-        if entry.file_type().is_file() && entry.file_name() == filename {
-            return Some(entry.into_path());
-        }
-    }
-    None
-}
-
 fn main() {
+    // Rebuild triggers
+    println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-env-changed=CEA_SYS_CMAKE_GENERATOR");
     println!("cargo:rerun-if-env-changed=FC");
@@ -19,74 +17,132 @@ fn main() {
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let cea_src = manifest_dir.join("vendor").join("cea");
+    if !cea_src.exists() {
+        panic!(
+            "Vendored CEA source not found at {} (expected crates/cea-sys/vendor/cea)",
+            cea_src.display()
+        );
+    }
 
-    // Build/install into a stable location under OUT_DIR
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let install_prefix = out_dir.join("cea-install");
+    // Export paths for the Rust crate (compile-time via cargo:rustc-env)
+    let include_dir = cea_src.join("source").join("bind").join("c");
+    println!("cargo:rustc-env=CEA_SYS_VENDOR_DIR={}", cea_src.display());
+    println!(
+        "cargo:rustc-env=CEA_SYS_INCLUDE_DIR={}",
+        include_dir.display()
+    );
 
+    // Optional: export database paths if present
+    let thermo_lib = cea_src.join("data").join("thermo.lib");
+    let trans_lib = cea_src.join("data").join("trans.lib");
+    if thermo_lib.exists() {
+        println!("cargo:rustc-env=CEA_SYS_THERMO_LIB={}", thermo_lib.display());
+    }
+    if trans_lib.exists() {
+        println!("cargo:rustc-env=CEA_SYS_TRANS_LIB={}", trans_lib.display());
+    }
+
+    // -------------------------
+    // Build vendored CEA (C API)
+    // -------------------------
     let mut cfg = cmake::Config::new(&cea_src);
 
-    // Match CEA docs: minimal "Fortran + C" build disables Python binding
-    // (equivalent intent to their "core-c" preset) :contentReference[oaicite:5]{index=5}
-    cfg.define("CEA_ENABLE_BIND_PYTHON", "OFF");
-    cfg.define("CEA_BUILD_TESTING", "OFF");
+    // Minimal build: disable wrapper stacks that drag Python/Cython in.
+    cfg.define("CEA_BUILD_TESTING", "OFF")
+        .define("CEA_ENABLE_BIND_PYTHON", "OFF")
+        .define("CEA_ENABLE_BIND_MATLAB", "OFF")
+        .define("CEA_ENABLE_BIND_EXCEL", "OFF");
 
-    // Keep shared by default (simpler with Fortran runtime); you can experiment later:
-    // cfg.define("BUILD_SHARED_LIBS", "OFF");
+    // Critical: build only the C binding target (don’t run "install")
+    cfg.build_target("cea_bindc");
 
     if let Ok(generator) = env::var("CEA_SYS_CMAKE_GENERATOR") {
         cfg.generator(generator);
     }
 
-    // cmake crate installs to OUT_DIR by default; we’ll force an explicit install prefix
-    cfg.define("CMAKE_INSTALL_PREFIX", &install_prefix);
-
-    // Build + install
     let dst = cfg.build();
+    let build_root = dst.join("build");
 
-    // Link search path
-    let libdir_candidates = [dst.join("lib"), dst.join("lib64")];
-    let libdir = libdir_candidates
-        .into_iter()
-        .find(|p| p.exists())
-        .unwrap_or(dst.join("lib"));
+    // -------------------------
+    // Link libraries
+    // -------------------------
+    // Static libs require order: dependent first, dependencies after.
+    // We link all 3 to be safe across platforms/build modes.
+    link_target(&build_root, "cea_bindc");
+    link_target(&build_root, "cea_core");
+    link_target(&build_root, "fbasics_core");
 
-    println!("cargo:rustc-link-search=native={}", libdir.display());
-    println!("cargo:rustc-link-lib=cea"); // links libcea* :contentReference[oaicite:6]{index=6}
-
-    // On mac/linux, embed rpath so binaries can find libcea without env vars.
-    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    if target_os == "linux" || target_os == "macos" {
-        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", libdir.display());
+    // -------------------------
+    // Bindgen
+    // -------------------------
+    let wrapper_h = manifest_dir.join("wrapper.h");
+    if !wrapper_h.exists() {
+        panic!("wrapper.h not found at {}", wrapper_h.display());
     }
 
-    // Bindgen against installed header. C API is via <cea.h>. :contentReference[oaicite:7]{index=7}
-    let include_dir = dst.join("include");
-    let header = include_dir.join("cea.h");
-
     let bindings = bindgen::Builder::default()
-        .header(header.to_string_lossy())
+        .header(wrapper_h.to_string_lossy())
         .clang_arg(format!("-I{}", include_dir.display()))
         .allowlist_function("^cea_.*")
         .allowlist_type("^cea_.*")
         .allowlist_var("^CEA_.*")
-        .derive_default(true)
-        .generate_comments(true)
+        .opaque_type("cea_.*_t")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("bindgen failed");
 
-    let bindings_out = out_dir.join("bindings.rs");
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
-        .write_to_file(&bindings_out)
+        .write_to_file(out_dir.join("bindings.rs"))
         .expect("could not write bindings.rs");
+}
 
-    // Expose install prefix + best-effort database file paths (CEA installs default databases) :contentReference[oaicite:8]{index=8}
-    println!("cargo:rustc-env=CEA_SYS_PREFIX={}", dst.display());
+fn link_target(build_root: &Path, name: &str) {
+    // Prefer shared, then static, then windows import libs
+    let candidates = [
+        format!("lib{name}.dylib"),
+        format!("lib{name}.so"),
+        format!("lib{name}.a"),
+        format!("{name}.lib"),
+        format!("lib{name}.lib"),
+    ];
 
-    if let Some(p) = find_named_file(&dst, "thermo.lib") {
-        println!("cargo:rustc-env=CEA_SYS_THERMO_LIB={}", p.display());
+    let mut found: Option<PathBuf> = None;
+    'outer: for entry in WalkDir::new(build_root).into_iter().filter_map(Result::ok) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let file = entry.file_name().to_string_lossy();
+        for c in &candidates {
+            if file == *c {
+                found = Some(entry.path().to_path_buf());
+                break 'outer;
+            }
+        }
     }
-    if let Some(p) = find_named_file(&dst, "trans.lib") {
-        println!("cargo:rustc-env=CEA_SYS_TRANS_LIB={}", p.display());
+
+    let lib_path = found.unwrap_or_else(|| {
+        panic!(
+            "Could not find built library for target '{name}' under {}",
+            build_root.display()
+        )
+    });
+
+    let lib_dir = lib_path.parent().unwrap();
+    println!("cargo:rustc-link-search=native={}", lib_dir.display());
+
+    let ext = lib_path.extension().and_then(OsStr::to_str).unwrap_or("");
+    let is_static = ext == "a";
+
+    if is_static {
+        println!("cargo:rustc-link-lib=static={name}");
+    } else {
+        println!("cargo:rustc-link-lib={name}");
+
+        // Help runtime loading for dylibs in nonstandard locations
+        let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+        if target_os == "macos" || target_os == "linux" {
+            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir.display());
+        }
     }
 }
