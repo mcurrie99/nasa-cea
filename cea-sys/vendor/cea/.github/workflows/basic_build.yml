@@ -1,0 +1,33 @@
+name: Basic Build
+run-name: "[${{ github.actor }}]: ${{ github.event_name }} to ${{ github.ref_name }}"
+on: [push]
+jobs:
+  build-ubuntu-22:
+    runs-on: [self-hosted, linux]
+    container: ecpe4s/ubuntu22.04-runner-x86_64:2023-01-01
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get -y install cmake ninja-build
+      - name: Record toolchain info
+        run: |
+          git --version
+          gcc --version
+          g++ --version
+          gfortran --version
+          python3 --version
+          ninja --version
+          cmake --version
+      - name: Check out CEA
+        uses: actions/checkout@v3
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install numpy cython
+      - name: Build CEA in developer mode
+        run: |
+          scripts/develop.sh -G Ninja
+      - name: Run test harness
+        run: |
+          ctest --output-on-failure --test-dir build-dev
