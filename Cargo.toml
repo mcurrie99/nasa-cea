@@ -8,3 +8,4 @@ members = ["crates/cea-sys", "crates/cea"]
 resolver = "2"
 
 [dependencies]
+cea-sys = { path = "crates/cea-sys" }

@@ -1,0 +1,121 @@
+module input_test
+    use funit
+    use cea_input
+    use fb_string_scanner
+    implicit none
+contains
+
+    @test
+    subroutine test_read_input
+        type(ProblemDB), allocatable :: problems(:)
+        write(*,*) 'Testing read_input'
+        !call set_log_level(log_levels%debug)
+        problems = read_input('samples/rp1311_examples.inp')
+        @assertEqual(14, size(problems))
+        @assertEqual('Example-1', problems( 1)%problem%name)
+        @assertEqual('CO2',       problems( 2)%only(4))
+        @assertEqual('hp',        problems( 3)%problem%type)
+        @assertEqual(0.4d0,       problems( 4)%reactants(2)%amount%values(1))
+        @assertEqual('cal/mole',  problems( 5)%reactants(2)%enthalpy%units)
+        @assertEqual('bar',       problems( 6)%problem%p_schedule%units)
+        @assertEqual(1200d0,      problems( 7)%problem%u1_schedule%values(3))
+        @assertEqual('fu',        problems( 8)%reactants(1)%type)
+        @assertEqual(.true.,      problems( 9)%problem%rkt_finite_area)
+        @assertEqual(1000.0d0,    problems(10)%problem%pcp_schedule%values(3))
+        @assertEqual(.true.,      problems(11)%problem%include_ions)
+        @assertEqual(75.0d0,      problems(12)%problem%supar_schedule%values(5))
+        @assertEqual(67d0,        problems(13)%problem%of_schedule%values(1))
+        @assertEqual('H',         problems(14)%reactants(1)%formula%elements(1))
+        @assertEqual(2.0d0,       problems(14)%reactants(2)%formula%coefficients(1))
+    end subroutine
+
+    @test
+    subroutine test_embedded
+        character(:), allocatable :: name, units
+
+        call parse_embedded('p', name, units)
+        @assertEqual('p', name)
+        @assertEqual('', units)
+
+        call parse_embedded('p,bars', name, units)
+        @assertEqual('p', name)
+        @assertEqual('bar', units)
+
+        ! call parse_embedded('pbar', name, units)
+        ! @assertEqual('p', name)
+        ! @assertEqual('bar', units)
+
+        call parse_embedded('pressure:bars', name, units)
+        @assertEqual('pressure', name)
+        @assertEqual('bar', units)
+
+        call parse_embedded('t(k)', name, units)
+        @assertEqual('t', name)
+        @assertEqual('k', units)
+
+    end subroutine
+
+    @test
+    subroutine test_parse_schedule
+        character(:), allocatable :: token
+        type(string_scanner) :: scanner
+        type(Schedule) :: sch
+
+        scanner = string_scanner(replace_delimiters('p(atm)=1,.1,.01,'))
+        token = scanner%read_word()
+        sch = parse_schedule(scanner, token)
+        @assertEqual('p',    sch%name)
+        @assertEqual('atm',  sch%units)
+        @assertEqual(3,      size(sch%values))
+        @assertEqual(0.01d0, sch%values(3))
+
+        scanner = string_scanner(replace_delimiters('r,eq.ratio=1,1.5'))
+        token = scanner%read_word()
+        sch = parse_schedule(scanner, token)
+        @assertEqual('r',        sch%name)
+        @assertEqual('eq.ratio', sch%units)
+        @assertEqual(2,          size(sch%values))
+        @assertEqual(1.0d0,      sch%values(1))
+
+        scanner = string_scanner(replace_delimiters('rho,kg/m**3=14.428'))
+        token = scanner%read_word()
+        sch = parse_schedule(scanner, token)
+        @assertEqual('rho',     sch%name)
+        @assertEqual('kg/m**3', sch%units)
+        @assertEqual(1,         size(sch%values))
+        @assertEqual(14.428d0,  sch%values(1))
+
+        scanner = string_scanner(replace_delimiters('p(atm)=1,.1,.01,t(k)=3000,2000,'))
+        token = scanner%read_word(); sch = parse_schedule(scanner, token)
+        token = scanner%read_word(); sch = parse_schedule(scanner, token)
+        @assertEqual('t',    sch%name)
+        @assertEqual('k',    sch%units)
+        @assertEqual(2,      size(sch%values))
+        @assertEqual(2000d0, sch%values(2))
+
+    end subroutine
+
+    @test
+    subroutine test_parse_species
+        character(:), allocatable :: species(:)
+
+        species = parse_species('only  Ar    C   CO  CO2  H   H2   H2O  HNO   HO2')
+        @assertEqual(9, size(species))
+        @assertEqual('Ar', species(1))
+        @assertEqual('HNO', species(8))
+
+        ! Test with embedded commas
+        species = parse_species('omit COOH  C2 C2H CHCO,ketyl  C2H2,vinylidene  CH2CO,ketene  C2H3,vinyl')
+        @assertEqual(7, size(species))
+        @assertEqual('C2H2,vinylidene', species(5))
+
+        ! Test with parenthese
+        species = parse_species('omit (HCOOH)2   C6H6(L)  C7H8(L)  C8H18(L),n-octa  Jet-A(L)  H2O(s) H2O(L)')
+        @assertEqual(7, size(species))
+        @assertEqual('(HCOOH)2', species(1))
+        @assertEqual('C8H18(L),n-octa', species(4))
+
+        return
+    end subroutine
+
+end module

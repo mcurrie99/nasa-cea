@@ -1,0 +1,198 @@
+
+ *******************************************************************************
+
+         NASA-GLENN CHEMICAL EQUILIBRIUM PROGRAM CEA2, MAY 21, 2004
+                   BY  BONNIE MCBRIDE AND SANFORD GORDON
+      REFS: NASA RP-1311, PART I, 1994 AND NASA RP-1311, PART II, 1996
+
+ *******************************************************************************
+
+
+
+ !  EXAMPLE 2:
+ !     (a)  Assigned-temperature-and-volume (or density) problem (tv).
+ !     (b)  Reactants are the same as in example 1.
+ !     (c)  One temperature was taken from example 1 (t(k)=3000).
+ !     (d)  One mixture was taken from example 1 (phi,eq.ratio=1).
+ !          Note: For stoichiometric mixtures, phi = r = 1.
+ !     (e)  Densities (rho) were obtained from the results of example 1.
+ !          Composition and properties in examples 1 and 2 should match for
+ !          these input values.
+ !     (f)  'only' dataset is used to restrict possible products.
+ !     (g)  Transport properties are to be calculated (transport).
+  
+       reac   fuel=H2   wt%=100
+              oxid Air   wt%=100
+       prob  case=Example-2  phi,eq.ratio=1, tv  t(k)=3000
+             rho,g/cc=9.1864d-05,8.0877d-06,6.6054d-07
+       only  Ar C CO CO2 H H2 H2O HNO HO2 HNO2 HNO3 N NH NO N2 N2O3 O O2 OH  O3
+       outp  transport calories
+       end
+
+ OPTIONS: TP=T  HP=F  SP=F  TV=T  UV=F  SV=F  DETN=F  SHOCK=F  REFL=F  INCD=F
+ RKT=F  FROZ=F  EQL=F  IONS=F  SIUNIT=F  DEBUGF=F  SHKDBG=F  DETDBG=F  TRNSPT=T
+
+ T,K =  3000.0000
+
+ TRACE= 0.00E+00  S/R= 0.000000E+00  H/R= 0.000000E+00  U/R= 0.000000E+00
+
+ SPECIFIC VOLUME,M**3/KG = 1.0885657E+01 1.2364455E+02 1.5139129E+03
+
+    REACTANT          WT.FRAC   (ENERGY/R),K   TEMP,K  DENSITY
+        EXPLODED FORMULA
+ F: H2               1.000000   0.000000E+00     0.00  0.0000
+          H  2.00000
+ O: Air              1.000000   0.000000E+00     0.00  0.0000
+          N  1.56168  O  0.41959  AR 0.00937  C  0.00032
+
+  SPECIES BEING CONSIDERED IN THIS SYSTEM
+ (CONDENSED PHASE MAY HAVE NAME LISTED SEVERAL TIMES)
+  LAST thermo.inp UPDATE:    9/09/04
+
+  g 3/98  *Ar              g 7/97  *C               tpis79  *CO            
+  g 9/99  *CO2             g 6/97  *H               g10/01  HNO            
+  tpis89  HNO2             g 5/99  HNO3             g 4/02  HO2            
+  tpis78  *H2              g 8/89  H2O              g 5/97  *N             
+  g 4/99  *NH              tpis89  *NO              tpis78  *N2            
+  g 4/99  N2O3             g 5/97  *O               g 4/02  *OH            
+  tpis89  *O2              g 8/01  O3             
+
+ SPECIES WITH TRANSPORT PROPERTIES
+
+        PURE SPECIES
+
+  Ar                C                 CO                CO2             
+  H                 H2              
+  H2O               N                 NO                N2              
+  O                 OH              
+  O2              
+
+     BINARY INTERACTIONS
+
+     C               O               
+     CO              CO2             
+     CO              N2              
+     CO              O2              
+     CO2             H2              
+     CO2             H2O             
+     CO2             N2              
+     CO2             O2              
+     H               H2              
+     H               N               
+     H               N2              
+     H               O               
+     H2              H2O             
+     H2              N2              
+     H2              O2              
+     H2O             N2              
+     H2O             O2              
+     N               NO              
+     N               N2              
+     N               O               
+     N               O2              
+     NO              O               
+     N2              O               
+     N2              O2              
+     O               O2              
+
+
+ O/F =  34.296226
+
+                       EFFECTIVE FUEL     EFFECTIVE OXIDANT        MIXTURE
+ INTERNAL ENERGY           u(2)/R              u(1)/R              u0/R
+ (KG-MOL)(K)/KG        0.00000000E+00      0.00000000E+00      0.00000000E+00
+
+ KG-FORM.WT./KG             bi(2)               bi(1)               b0i
+  *H                   0.99212255E+00      0.00000000E+00      0.28108460E-01
+  *N                   0.00000000E+00      0.53915890E-01      0.52388364E-01
+  *O                   0.00000000E+00      0.14486046E-01      0.14075632E-01
+  *Ar                  0.00000000E+00      0.32331996E-03      0.31415977E-03
+  *C                   0.00000000E+00      0.11013248E-04      0.10701224E-04
+
+ POINT ITN      T            H           N           O           AR
+                    C 
+   1   13    3000.000     -11.765     -14.452     -17.124     -27.078
+                 -25.128
+   2    5    3000.000     -12.813     -15.668     -18.103     -29.508
+                 -26.376
+   3    5    3000.000     -14.314     -16.920     -19.505     -32.013
+                 -27.372
+
+
+
+
+               THERMODYNAMIC EQUILIBRIUM PROPERTIES AT ASSIGNED
+
+                            TEMPERATURE AND VOLUME
+
+ CASE = Example-2      
+
+             REACTANT                    WT FRACTION      ENERGY      TEMP
+                                          (SEE NOTE)      CAL/MOL       K  
+ FUEL        H2                           1.0000000         0.000      0.000
+ OXIDANT     Air                          1.0000000         0.000      0.000
+
+ O/F=   34.29623  %FUEL=  2.833164  R,EQ.RATIO= 1.000000  PHI,EQ.RATIO= 1.000000
+
+ THERMODYNAMIC PROPERTIES
+
+ P, ATM            1.0009  0.10003  0.00999
+ T, K             3000.00  3000.00  3000.00
+ RHO, G/CC       9.1864-5 8.0877-6 6.6054-7
+ H, CAL/G          663.55  1369.41  2647.69
+ U, CAL/G          399.70  1069.89  2281.49
+ G, CAL/G        -7974.30 -8616.61 -9381.38
+ S, CAL/(G)(K)     2.8793   3.3287   4.0097
+
+ M, (1/n)          22.595   19.904   16.279
+ (dLV/dLP)t      -1.03441 -1.07867 -1.07476
+ (dLV/dLT)p        1.6955   2.5332   2.4127
+ Cp, CAL/(G)(K)    1.6812   3.4395   3.7156
+ GAMMAs            1.1312   1.1206   1.1318
+ SON VEL,M/SEC     1117.5   1185.0   1316.9
+
+ TRANSPORT PROPERTIES (GASES ONLY)
+   CONDUCTIVITY IN UNITS OF MILLICALORIES/(CM)(K)(SEC)
+
+ VISC,MILLIPOISE  0.93576  0.94014  0.94820
+
+  WITH EQUILIBRIUM REACTIONS
+
+ Cp, CAL/(G)(K)    1.6812   3.4395   3.7156
+ CONDUCTIVITY      4.4211   9.6216   8.8285
+ PRANDTL NUMBER    0.3558   0.3361   0.3991
+
+  WITH FROZEN REACTIONS
+
+ Cp, CAL/(G)(K)    0.4250   0.4282   0.4368
+ CONDUCTIVITY      0.6290   0.7265   0.8641
+ PRANDTL NUMBER    0.6322   0.5541   0.4793
+
+ MOLE FRACTIONS
+
+ *Ar              0.00710  0.00625  0.00511
+ *CO              0.00017  0.00018  0.00017
+ *CO2             0.00007  0.00003  0.00001
+ *H               0.04073  0.14287  0.31902
+ HO2              0.00001  0.00001  0.00000
+ *H2              0.06727  0.08272  0.04118
+ H2O              0.20733  0.09581  0.01174
+ *N               0.00001  0.00003  0.00009
+ *NO              0.01230  0.01371  0.00967
+ *N2              0.58569  0.51450  0.42155
+ *O               0.01539  0.05786  0.14265
+ *OH              0.04517  0.05953  0.03273
+ *O2              0.01876  0.02650  0.01609
+
+  * THERMODYNAMIC PROPERTIES FITTED TO 20000.K
+
+    PRODUCTS WHICH WERE CONSIDERED BUT WHOSE MOLE FRACTIONS
+    WERE LESS THAN 5.000000E-06 FOR ALL ASSIGNED CONDITIONS
+
+ *C              HNO             HNO2            HNO3            *NH            
+ N2O3            O3             
+
+ NOTE. WEIGHT FRACTION OF FUEL IN TOTAL FUELS AND OF OXIDANT IN TOTAL OXIDANTS
+
+
+
