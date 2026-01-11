@@ -9,3 +9,5 @@ resolver = "2"
 
 [dependencies]
 cea-sys = { path = "crates/cea-sys" }
+cea = { path = "crates/cea" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
