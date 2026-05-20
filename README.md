@@ -1,5 +1,7 @@
 # nasa-cea
 
+[![CI](https://github.com/mcurrie99/nasa-cea/actions/workflows/ci.yml/badge.svg)](https://github.com/mcurrie99/nasa-cea/actions/workflows/ci.yml)
+
 Rust bindings and a small safe wrapper for NASA CEA.
 
 The workspace is split into two layers:
@@ -66,11 +68,11 @@ fn main() -> Result<(), nasa_cea::Error> {
 
 ## Using From Another Project
 
-Point your other project at this workspace package:
+Point your other project at the GitHub repository:
 
 ```toml
 [dependencies]
-nasa-cea = { path = "/Users/mcurrie/Library/CloudStorage/OneDrive-Personal/Outside/Rust/nasa-cea" }
+nasa-cea = { git = "https://github.com/mcurrie99/nasa-cea.git" }
 ```
 
 Then import it as `nasa_cea`.

@@ -126,12 +126,13 @@ impl EquilibriumBuilder {
         };
 
         let insert_refs = borrowed_strings(&self.insert);
-        let mut options = SolverOptions::default();
-        options.trace = self.trace;
-        options.ions = self.ions;
-        options.transport = self.transport;
-        options.reactants = Some(&reactants);
-        options.insert = insert_refs;
+        let options = SolverOptions {
+            trace: self.trace,
+            ions: self.ions,
+            transport: self.transport,
+            reactants: Some(&reactants),
+            insert: insert_refs,
+        };
 
         let solver = EqSolver::with_options(&products, options)?;
         let solution = EqSolution::new(&solver)?;
