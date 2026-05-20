@@ -1,11 +1,18 @@
 mod eqsolver;
 mod error;
+mod high_level;
 mod mixture;
 
 pub use eqsolver::{EqPartials, EqSolution, EqSolver, SolverOptions};
 pub use error::{Error, Result};
+pub use high_level::{
+    solve_tp, solve_tp_equivalence_moles, Equilibrium, EquilibriumBuilder, EquilibriumProperties,
+    EquilibriumResult, TpCase, TpEquivalenceMolesCase,
+};
 pub use mixture::Mixture;
 
+use std::ffi::CString;
+use std::path::Path;
 use std::sync::OnceLock;
 
 #[derive(Debug, Copy, Clone)]
@@ -102,20 +109,67 @@ impl From<PropertyType> for cea_sys::cea_property_type {
                 cea_sys::cea_property_type_CEA_EQUILIBRIUM_CONDUCTIVITY
             }
             PropertyType::FrozenPrandtl => cea_sys::cea_property_type_CEA_FROZEN_PRANDTL,
-            PropertyType::EquilibriumPrandtl => {
-                cea_sys::cea_property_type_CEA_EQUILIBRIUM_PRANDTL
-            }
+            PropertyType::EquilibriumPrandtl => cea_sys::cea_property_type_CEA_EQUILIBRIUM_PRANDTL,
         }
     }
 }
 
-static INIT: OnceLock<cea_sys::cea_err> = OnceLock::new();
+#[derive(Debug, Copy, Clone)]
+enum InitStatus {
+    Default(cea_sys::cea_err),
+    WithData {
+        thermo: cea_sys::cea_err,
+        transport: cea_sys::cea_err,
+    },
+}
+
+static INIT: OnceLock<InitStatus> = OnceLock::new();
 
 pub fn init() -> Result<()> {
-    let err = *INIT.get_or_init(|| unsafe { cea_sys::cea_init() });
-    error::check(err, "cea_init")
+    if let (Some(thermo), Some(transport)) =
+        (cea_sys::CEA_SYS_THERMO_LIB, cea_sys::CEA_SYS_TRANS_LIB)
+    {
+        init_from_files(thermo, transport)
+    } else {
+        let status = *INIT.get_or_init(|| InitStatus::Default(unsafe { cea_sys::cea_init() }));
+        check_init_status(status)
+    }
+}
+
+pub fn init_from_files(
+    thermo_file: impl AsRef<Path>,
+    transport_file: impl AsRef<Path>,
+) -> Result<()> {
+    let thermo_file = path_to_cstring(thermo_file, "init_from_files thermo_file")?;
+    let transport_file = path_to_cstring(transport_file, "init_from_files transport_file")?;
+    let status = *INIT.get_or_init(|| unsafe {
+        InitStatus::WithData {
+            thermo: cea_sys::cea_init_thermo(thermo_file.as_ptr()),
+            transport: cea_sys::cea_init_trans(transport_file.as_ptr()),
+        }
+    });
+    check_init_status(status)
 }
 
 pub fn set_log_level(level: LogLevel) -> Result<()> {
-    error::check(unsafe { cea_sys::cea_set_log_level(level.into()) }, "cea_set_log_level")
+    error::check(
+        unsafe { cea_sys::cea_set_log_level(level.into()) },
+        "cea_set_log_level",
+    )
+}
+
+fn check_init_status(status: InitStatus) -> Result<()> {
+    match status {
+        InitStatus::Default(err) => error::check(err, "cea_init"),
+        InitStatus::WithData { thermo, transport } => {
+            error::check(thermo, "cea_init_thermo")?;
+            error::check(transport, "cea_init_trans")
+        }
+    }
+}
+
+fn path_to_cstring(path: impl AsRef<Path>, context: &str) -> Result<CString> {
+    CString::new(path.as_ref().as_os_str().to_string_lossy().into_owned()).map_err(|_| Error::Nul {
+        context: context.to_string(),
+    })
 }
