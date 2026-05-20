@@ -1,6 +1,6 @@
-use crate::error::{check, Error, Result};
-use crate::{EquilibriumType, PropertyType};
+use crate::error::{Error, Result, check};
 use crate::mixture::Mixture;
+use crate::{EquilibriumType, PropertyType};
 use cea_sys::{cea_int, cea_real};
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -60,7 +60,10 @@ impl EqSolver {
     pub fn with_options(products: &Mixture, options: SolverOptions<'_>) -> Result<Self> {
         let mut opts: cea_sys::cea_solver_opts = unsafe { std::mem::zeroed() };
         unsafe {
-            check(cea_sys::cea_solver_opts_init(&mut opts), "cea_solver_opts_init")?;
+            check(
+                cea_sys::cea_solver_opts_init(&mut opts),
+                "cea_solver_opts_init",
+            )?;
         }
         opts.trace = options.trace;
         opts.ions = options.ions;
@@ -170,6 +173,53 @@ impl EqSolution {
             )?;
         }
         Ok(value)
+    }
+
+    pub fn species_mass_fractions(&self, len: usize) -> Result<Vec<cea_real>> {
+        self.species_amounts(len, true)
+    }
+
+    pub fn species_mole_fractions(&self, len: usize) -> Result<Vec<cea_real>> {
+        self.species_amounts(len, false)
+    }
+
+    pub fn moles(&self) -> Result<cea_real> {
+        let mut value = 0.0;
+        unsafe {
+            check(
+                cea_sys::cea_eqsolution_get_moles(self.ptr, &mut value),
+                "cea_eqsolution_get_moles",
+            )?;
+        }
+        Ok(value)
+    }
+
+    pub fn converged(&self) -> Result<bool> {
+        let mut converged = 0;
+        unsafe {
+            check(
+                cea_sys::cea_eqsolution_get_converged(self.ptr, &mut converged),
+                "cea_eqsolution_get_converged",
+            )?;
+        }
+        Ok(converged != 0)
+    }
+
+    fn species_amounts(&self, len: usize, mass: bool) -> Result<Vec<cea_real>> {
+        let len = to_cea_int(len, "species_amounts")?;
+        let mut amounts = vec![0.0; len as usize];
+        unsafe {
+            check(
+                cea_sys::cea_eqsolution_get_species_amounts(
+                    self.ptr,
+                    len,
+                    amounts.as_mut_ptr(),
+                    mass,
+                ),
+                "cea_eqsolution_get_species_amounts",
+            )?;
+        }
+        Ok(amounts)
     }
 }
 

@@ -9,6 +9,8 @@ pub enum Error {
     Cea { code: cea_err, context: String },
     #[error("{context}: invalid length")]
     InvalidLength { context: String },
+    #[error("{context}: {message}")]
+    InvalidInput { context: String, message: String },
     #[error("{context}: NUL byte in string")]
     Nul { context: String },
 }
