@@ -1,7 +1,8 @@
 use crate::{
-    EqPartials, EqSolution, EqSolver, EquilibriumType, Error, Mixture, PropertyType, Result,
-    SolverOptions, init,
+    init, EqPartials, EqSolution, EqSolver, EquilibriumType, Error, Mixture, PropertyType, Result,
+    SolverOptions,
 };
+use std::thread;
 
 #[derive(Debug, Clone)]
 pub struct EquilibriumBuilder {
@@ -150,6 +151,46 @@ impl EquilibriumBuilder {
             transport: self.transport,
         })
     }
+
+    pub fn solve_tp_cases_parallel(&self, cases: &[TpCase]) -> Result<Vec<EquilibriumResult>> {
+        self.solve_tp_cases_parallel_with_threads(cases, default_thread_count(cases.len()))
+    }
+
+    pub fn solve_tp_cases_parallel_with_threads(
+        &self,
+        cases: &[TpCase],
+        threads: usize,
+    ) -> Result<Vec<EquilibriumResult>> {
+        run_parallel_cases(self, cases, threads, |equilibrium, case| {
+            equilibrium.tp(case.temperature, case.pressure, &case.reactant_weights)
+        })
+    }
+
+    pub fn solve_tp_equivalence_moles_cases_parallel(
+        &self,
+        cases: &[TpEquivalenceMolesCase],
+    ) -> Result<Vec<EquilibriumResult>> {
+        self.solve_tp_equivalence_moles_cases_parallel_with_threads(
+            cases,
+            default_thread_count(cases.len()),
+        )
+    }
+
+    pub fn solve_tp_equivalence_moles_cases_parallel_with_threads(
+        &self,
+        cases: &[TpEquivalenceMolesCase],
+        threads: usize,
+    ) -> Result<Vec<EquilibriumResult>> {
+        run_parallel_cases(self, cases, threads, |equilibrium, case| {
+            equilibrium.tp_with_chemical_equivalence_moles(
+                case.temperature,
+                case.pressure,
+                &case.fuel_moles,
+                &case.oxidant_moles,
+                case.chemical_equivalence_ratio,
+            )
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -167,6 +208,50 @@ pub struct Equilibrium {
     reactant_species: Vec<String>,
     product_species: Vec<String>,
     transport: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct TpCase {
+    pub temperature: f64,
+    pub pressure: f64,
+    pub reactant_weights: Vec<f64>,
+}
+
+impl TpCase {
+    pub fn new(temperature: f64, pressure: f64, reactant_weights: impl Into<Vec<f64>>) -> Self {
+        Self {
+            temperature,
+            pressure,
+            reactant_weights: reactant_weights.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TpEquivalenceMolesCase {
+    pub temperature: f64,
+    pub pressure: f64,
+    pub fuel_moles: Vec<f64>,
+    pub oxidant_moles: Vec<f64>,
+    pub chemical_equivalence_ratio: f64,
+}
+
+impl TpEquivalenceMolesCase {
+    pub fn new(
+        temperature: f64,
+        pressure: f64,
+        fuel_moles: impl Into<Vec<f64>>,
+        oxidant_moles: impl Into<Vec<f64>>,
+        chemical_equivalence_ratio: f64,
+    ) -> Self {
+        Self {
+            temperature,
+            pressure,
+            fuel_moles: fuel_moles.into(),
+            oxidant_moles: oxidant_moles.into(),
+            chemical_equivalence_ratio,
+        }
+    }
 }
 
 impl Equilibrium {
@@ -562,4 +647,75 @@ fn invalid_input(context: &str, message: &str) -> Error {
         context: context.to_string(),
         message: message.to_string(),
     }
+}
+
+fn default_thread_count(case_count: usize) -> usize {
+    thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .min(case_count.max(1))
+}
+
+fn run_parallel_cases<C, F>(
+    builder: &EquilibriumBuilder,
+    cases: &[C],
+    threads: usize,
+    solve: F,
+) -> Result<Vec<EquilibriumResult>>
+where
+    C: Sync,
+    F: Fn(&mut Equilibrium, &C) -> Result<EquilibriumResult> + Copy + Send + Sync,
+{
+    if cases.is_empty() {
+        return Ok(Vec::new());
+    }
+    if threads == 0 {
+        return Err(invalid_input(
+            "run_parallel_cases",
+            "thread count must be greater than zero",
+        ));
+    }
+
+    init()?;
+
+    let workers = threads.min(cases.len());
+    let chunk_size = cases.len().div_ceil(workers);
+    let mut results = vec![None; cases.len()];
+
+    thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(workers);
+        for (worker_index, chunk) in cases.chunks(chunk_size).enumerate() {
+            let start = worker_index * chunk_size;
+            let builder = builder.clone();
+            handles.push(scope.spawn(move || {
+                let mut equilibrium = builder.build()?;
+                let mut chunk_results = Vec::with_capacity(chunk.len());
+                for (offset, case) in chunk.iter().enumerate() {
+                    chunk_results.push((start + offset, solve(&mut equilibrium, case)?));
+                }
+                Ok::<_, Error>(chunk_results)
+            }));
+        }
+
+        for handle in handles {
+            let chunk_results = handle.join().map_err(|_| Error::ThreadPanic {
+                context: "run_parallel_cases".to_string(),
+            })??;
+            for (index, result) in chunk_results {
+                results[index] = Some(result);
+            }
+        }
+
+        Ok::<_, Error>(())
+    })?;
+
+    results
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            result.ok_or_else(|| Error::ThreadPanic {
+                context: format!("run_parallel_cases result {index}"),
+            })
+        })
+        .collect()
 }

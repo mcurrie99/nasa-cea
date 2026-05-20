@@ -66,6 +66,32 @@ fn main() -> Result<(), nasa_cea::Error> {
 }
 ```
 
+## Parallel Sweeps
+
+CEA initialization is handled once before worker threads start. For parallel sweeps, use the builder-level helpers; each worker creates its own solver handles instead of sharing raw CEA pointers across threads.
+
+```rust
+use nasa_cea::{Equilibrium, TpEquivalenceMolesCase};
+
+fn main() -> Result<(), nasa_cea::Error> {
+    let builder = Equilibrium::builder()
+        .reactants(["H2", "Air"])
+        .products([
+            "Ar", "C", "CO", "CO2", "H", "H2", "H2O", "HNO", "HO2", "HNO2",
+            "HNO3", "N", "NH", "NO", "N2", "N2O3", "O", "O2", "OH", "O3",
+        ]);
+
+    let cases = [
+        TpEquivalenceMolesCase::new(3000.0, 1.01325, [1.0, 0.0], [0.0, 1.0], 1.0),
+        TpEquivalenceMolesCase::new(2000.0, 1.01325, [1.0, 0.0], [0.0, 1.0], 1.5),
+    ];
+
+    let results = builder.solve_tp_equivalence_moles_cases_parallel(&cases)?;
+    println!("solved {} cases", results.len());
+    Ok(())
+}
+```
+
 ## Using From Another Project
 
 Point your other project at the GitHub repository:

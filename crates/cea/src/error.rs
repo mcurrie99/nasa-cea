@@ -13,6 +13,8 @@ pub enum Error {
     InvalidInput { context: String, message: String },
     #[error("{context}: NUL byte in string")]
     Nul { context: String },
+    #[error("{context}: worker thread panicked")]
+    ThreadPanic { context: String },
 }
 
 pub(crate) fn check(code: cea_err, context: &str) -> Result<()> {

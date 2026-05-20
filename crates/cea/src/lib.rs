@@ -6,8 +6,8 @@ mod mixture;
 pub use eqsolver::{EqPartials, EqSolution, EqSolver, SolverOptions};
 pub use error::{Error, Result};
 pub use high_level::{
-    Equilibrium, EquilibriumBuilder, EquilibriumProperties, EquilibriumResult, solve_tp,
-    solve_tp_equivalence_moles,
+    solve_tp, solve_tp_equivalence_moles, Equilibrium, EquilibriumBuilder, EquilibriumProperties,
+    EquilibriumResult, TpCase, TpEquivalenceMolesCase,
 };
 pub use mixture::Mixture;
 

@@ -1,4 +1,4 @@
-use cea::{Equilibrium, LogLevel, solve_tp_equivalence_moles};
+use cea::{solve_tp_equivalence_moles, Equilibrium, LogLevel, TpEquivalenceMolesCase};
 use std::sync::{Mutex, OnceLock};
 
 const ATM: f64 = 1.01325;
@@ -61,4 +61,30 @@ fn reusable_equilibrium_solves_multiple_states() {
     assert!(second.converged);
     assert_ne!(first.properties.temperature, second.properties.temperature);
     assert!(second.product_mass_fraction("N2").unwrap().is_finite());
+}
+
+#[test]
+fn builder_solves_tp_cases_in_parallel() {
+    let _guard = test_lock();
+    cea::set_log_level(LogLevel::None).unwrap();
+
+    let builder = Equilibrium::builder()
+        .reactants(REACTANTS)
+        .products(PRODUCTS);
+    let cases = [
+        TpEquivalenceMolesCase::new(3000.0, ATM, FUEL_MOLES, OXIDANT_MOLES, 1.0),
+        TpEquivalenceMolesCase::new(2000.0, ATM, FUEL_MOLES, OXIDANT_MOLES, 1.0),
+        TpEquivalenceMolesCase::new(3000.0, 0.1 * ATM, FUEL_MOLES, OXIDANT_MOLES, 1.5),
+        TpEquivalenceMolesCase::new(2000.0, 0.1 * ATM, FUEL_MOLES, OXIDANT_MOLES, 1.5),
+    ];
+
+    let results = builder
+        .solve_tp_equivalence_moles_cases_parallel_with_threads(&cases, 2)
+        .unwrap();
+
+    assert_eq!(results.len(), cases.len());
+    assert!(results.iter().all(|result| result.converged));
+    assert_eq!(results[0].properties.temperature, 3000.0);
+    assert_eq!(results[1].properties.temperature, 2000.0);
+    assert!(results[2].product_mole_fraction("H2O").unwrap().is_finite());
 }
